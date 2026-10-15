@@ -5,7 +5,11 @@ description = "PIDS scenario simulator: labelled ground truth through the same c
 readme = "README.md"
 requires-python = ">=3.12"
 license = "AGPL-3.0-or-later"
-dependencies = ["pids-core", "numpy>=2.2"]
+dependencies = [
+    "pids-core",
+    "numpy>=2.2",
+    "paho-mqtt>=2.1",
+]
 
 [project.scripts]
 pids-sim = "pids_sim.cli:main"

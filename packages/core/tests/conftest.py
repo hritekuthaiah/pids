@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 import pytest
-from helpers import SITE_FILE, GpsFactory, TrackFactory, at, geo
 
+from helpers import SITE_FILE, GpsFactory, TrackFactory, at, geo
 from pids_core.contracts import EntityClass, GpsFix, TrackBatch, VisionTrack
 from pids_core.site import Site
 

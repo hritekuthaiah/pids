@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from helpers import GpsFactory, TrackFactory, at
-
 from pids_core.baseline import NaiveGeofence
 from pids_core.contracts import AlertEventKind, EntityClass, TagRead, ThreatLevel
 from pids_core.engine import DecisionEngine

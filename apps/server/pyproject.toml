@@ -1,0 +1,43 @@
+[project]
+name = "pids-server"
+version = "0.1.0"
+description = "PIDS server: REST + WebSocket API, MQTT decision service, notification worker."
+readme = "README.md"
+requires-python = ">=3.12"
+license = "AGPL-3.0-or-later"
+dependencies = [
+    "aiomqtt>=2.4",
+    "alembic>=1.17",
+    "argon2-cffi>=25.1",
+    "asyncpg>=0.30",
+    "fastapi>=0.120",
+    "geoalchemy2>=0.18",
+    "httpx>=0.28",
+    "orjson>=3.11",
+    "pids-core",
+    "pids-ml",
+    "prometheus-client>=0.23",
+    "pydantic-settings>=2.11",
+    "pyjwt>=2.10",
+    "redis>=7.0",
+    "sqlalchemy[asyncio]>=2.0.44",
+    "structlog>=25.4",
+    "uvicorn[standard]>=0.38",
+]
+
+[project.scripts]
+pids-api = "pids_server.api.main:run"
+pids-decision = "pids_server.decision.service:main"
+pids-worker = "pids_server.worker.service:main"
+pids-admin = "pids_server.admin:main"
+
+[tool.uv.sources]
+pids-core = { workspace = true }
+pids-ml = { workspace = true }
+
+[build-system]
+requires = ["uv_build>=0.11,<0.14"]
+build-backend = "uv_build"
+
+[tool.uv.build-backend]
+module-name = "pids_server"

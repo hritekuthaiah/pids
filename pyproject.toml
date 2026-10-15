@@ -13,7 +13,7 @@ license = "AGPL-3.0-or-later"
 package = false
 
 [tool.uv.workspace]
-members = ["packages/core", "packages/sim", "ml"]
+members = ["packages/core", "packages/sim", "ml", "apps/server"]
 
 [dependency-groups]
 dev = [
@@ -24,6 +24,7 @@ dev = [
   "pytest-cov>=7.0",
   "hypothesis>=6.140",
   "types-pyyaml>=6.0.12.20260906",
+  "asgi-lifespan>=2.1",
 ]
 
 # ---------------------------------------------------------------------------
@@ -55,11 +56,11 @@ select = [
 ignore = ["E501"]  # the formatter owns line length
 
 [tool.ruff.lint.per-file-ignores]
-"**/tests/**" = ["S101", "S311", "PLR2004"]
+"**/tests/**" = ["S101", "S105", "S106", "S311", "PLR2004"]
 "**/scripts/**" = ["T20"]
 
 [tool.ruff.lint.isort]
-known-first-party = ["pids_core", "pids_sim", "pids_server", "pids_edge", "pids_ml"]
+known-first-party = ["pids_core", "pids_sim", "pids_server", "pids_edge", "pids_ml", "helpers", "server_helpers"]
 
 # ---------------------------------------------------------------------------
 # mypy — strict everywhere; third-party stubs handled per-module as they arrive
@@ -70,8 +71,9 @@ strict = true
 warn_unreachable = true
 pretty = true
 plugins = ["pydantic.mypy"]
-mypy_path = "packages/core/src:packages/sim/src:ml/src"
+mypy_path = "packages/core/src:packages/sim/src:ml/src:apps/server/src"
 explicit_package_bases = true
+exclude = ['/migrations/versions/']
 
 [[tool.mypy.overrides]]
 module = ["shapely.*", "sklearn.*", "joblib.*", "scipy.*"]
@@ -85,8 +87,8 @@ minversion = "8.0"
 addopts = "-ra --strict-markers --strict-config --import-mode=importlib"
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
-testpaths = ["packages/core/tests", "packages/sim/tests", "ml/tests"]
-pythonpath = ["packages/core/tests"]
+testpaths = ["packages/core/tests", "packages/sim/tests", "ml/tests", "apps/server/tests"]
+pythonpath = ["packages/core/tests", "apps/server/tests"]
 markers = [
   "integration: needs the docker compose stack (Postgres/Redis/MQTT)",
   "slow: long-running (model training, large simulations)",
@@ -95,7 +97,7 @@ filterwarnings = ["error"]
 
 [tool.coverage.run]
 branch = true
-source = ["pids_core", "pids_sim", "pids_ml"]
+source = ["pids_core", "pids_sim", "pids_ml", "pids_server"]
 
 [tool.coverage.report]
 show_missing = true
