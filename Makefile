@@ -32,9 +32,29 @@ setup: env ## One-time bootstrap: .env, Python + JS deps, git hooks
 up: ## Start infrastructure (Postgres/PostGIS, Redis, MQTT) and wait until healthy
 	$(COMPOSE) up -d --build --wait db redis mqtt
 
+.PHONY: up-all
+up-all: ## Start infrastructure + containerised API, decision service and worker
+	$(COMPOSE) --profile app up -d --build --wait
+
+.PHONY: dev-api
+dev-api: ## Run the API natively with reload-free uvicorn (uses .env)
+	set -a && . ./.env && set +a && $(UV) pids-api
+
+.PHONY: dev-decision
+dev-decision: ## Run the decision service natively
+	set -a && . ./.env && set +a && $(UV) pids-decision
+
+.PHONY: dev-worker
+dev-worker: ## Run the notification worker natively
+	set -a && . ./.env && set +a && $(UV) pids-worker
+
+.PHONY: sim-live
+sim-live: ## Stream simulated scenarios to MQTT in real time (loops): make sim-live f=intrusion-foot
+	set -a && . ./.env && set +a && $(UV) pids-sim live --family $(or $(f),intrusion-foot) --loop
+
 .PHONY: down
 down: ## Stop the stack (keeps data volumes)
-	$(COMPOSE) down
+	$(COMPOSE) --profile app down
 
 .PHONY: ps
 ps: ## Show stack status
@@ -53,6 +73,20 @@ nuke: ## Stop the stack AND delete all data volumes (asks first)
 	@read -r -p "Delete all PIDS data volumes? [y/N] " ans; [ "$$ans" = "y" ]
 	$(COMPOSE) down -v
 
+##@ Database
+
+.PHONY: migrate
+migrate: ## Apply database migrations
+	set -a && . ./.env && set +a && $(UV) alembic -c apps/server/alembic.ini upgrade head
+
+.PHONY: revision
+revision: ## Autogenerate a migration: make revision m="message"
+	set -a && . ./.env && set +a && $(UV) alembic -c apps/server/alembic.ini revision --autogenerate -m "$(m)"
+
+.PHONY: seed
+seed: ## Seed the demo site and demo users (passwords from .env)
+	set -a && . ./.env && set +a && $(UV) pids-admin seed --site config/sites/site-alpha.yaml
+
 ##@ Quality
 
 .PHONY: fmt
@@ -67,15 +101,19 @@ lint: ## Lint Python
 
 .PHONY: typecheck
 typecheck: ## Static type-check Python (mypy --strict)
-	$(UV) mypy packages/core/src packages/sim/src ml/src
+	$(UV) mypy packages/core/src packages/sim/src ml/src apps/server/src
 
 .PHONY: test
-test: ## Run unit tests
-	$(UV) pytest
+test: ## Run unit tests (no infrastructure needed)
+	$(UV) pytest -m "not integration"
+
+.PHONY: test-int
+test-int: ## Run integration tests against the running stack (make up first)
+	set -a && . ./.env && set +a && $(UV) pytest -m integration
 
 .PHONY: cov
 cov: ## Run unit tests with coverage report
-	$(UV) pytest --cov --cov-report=term-missing --cov-report=xml
+	$(UV) pytest -m "not integration" --cov --cov-report=term-missing --cov-report=xml
 
 .PHONY: check
 check: lint typecheck test ## Everything CI runs, locally

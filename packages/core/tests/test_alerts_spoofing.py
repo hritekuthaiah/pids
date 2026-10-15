@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from helpers import at, geo
-
 from pids_core.alerts import AlertPolicy, AlertTracker
 from pids_core.contracts import AlertEventKind, EntityClass, TagKind, ThreatAssessment, ThreatLevel
 from pids_core.site import Site
