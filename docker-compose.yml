@@ -55,6 +55,7 @@ services:
       MQTT_USERS: >-
         ${MQTT_SERVER_USER:?set in .env}:${MQTT_SERVER_PASSWORD:?set in .env}
         ${MQTT_EDGE_USER:?set in .env}:${MQTT_EDGE_PASSWORD:?set in .env}
+        ${MQTT_SIM_USER:-pids-sim}:${MQTT_SIM_PASSWORD:?set in .env}
       MQTT_HEALTH_USER: ${MQTT_SERVER_USER}
       MQTT_HEALTH_PASSWORD: ${MQTT_SERVER_PASSWORD}
     ports:
@@ -74,6 +75,66 @@ services:
       timeout: 5s
       retries: 6
       start_period: 5s
+
+  # ------------------------------------------------------------ application
+  # `make up-all` (profile "app"): containerised server processes. During
+  # development they can equally run natively (`make dev-*`).
+  migrate:
+    profiles: [app]
+    image: pids/server:dev
+    build: { context: ., dockerfile: apps/server/Dockerfile }
+    command: ["alembic", "-c", "apps/server/alembic.ini", "upgrade", "head"]
+    env_file: .env
+    environment: &app-env
+      POSTGRES_HOST: db
+      REDIS_HOST: redis
+      MQTT_HOST: mqtt
+    depends_on:
+      db: { condition: service_healthy }
+
+  api:
+    <<: *restart
+    profiles: [app]
+    image: pids/server:dev
+    command: ["pids-api"]
+    env_file: .env
+    environment: *app-env
+    ports:
+      - "127.0.0.1:${API_PORT:-8000}:8000"
+    depends_on: &app-deps
+      migrate: { condition: service_completed_successfully }
+      redis: { condition: service_healthy }
+      mqtt: { condition: service_healthy }
+
+  decision:
+    <<: *restart
+    profiles: [app]
+    image: pids/server:dev
+    command: ["pids-decision"]
+    env_file: .env
+    environment: *app-env
+    volumes:
+      - ./ml/artifacts:/app/ml/artifacts:ro
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:9101/metrics', timeout=2)"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    depends_on: *app-deps
+
+  worker:
+    <<: *restart
+    profiles: [app]
+    image: pids/server:dev
+    command: ["pids-worker"]
+    env_file: .env
+    environment: *app-env
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:9102/metrics', timeout=2)"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    depends_on: *app-deps
 
 volumes:
   pgdata:
