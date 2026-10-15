@@ -6,8 +6,8 @@
 # already trusts gives native images on both architectures with no third party.
 FROM postgres:17-bookworm
 
-ARG PG_MAJOR=17
-
+# PG_MAJOR is set by the base image, so the extension packages always match the
+# server version the image actually ships.
 RUN apt-get update \
  && apt-get install -y --no-install-recommends \
       "postgresql-${PG_MAJOR}-postgis-3" \
