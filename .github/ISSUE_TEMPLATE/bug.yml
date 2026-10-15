@@ -1,0 +1,34 @@
+name: Bug
+description: Something behaves differently from what was specified
+labels: ["type: bug"]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What should have happened
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      description: Commands, scenario seed, site config, logs.
+    validations:
+      required: true
+  - type: dropdown
+    id: severity
+    attributes:
+      label: Impact on detection
+      options:
+        - Could cause a MISSED intrusion (highest priority)
+        - Causes false / nuisance alarms
+        - Degrades operator experience
+        - Cosmetic
+    validations:
+      required: true
