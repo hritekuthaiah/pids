@@ -1,0 +1,5 @@
+ignored:
+  # Pinning exact apt package versions breaks rebuilds as soon as the PGDG mirror
+  # drops the old build. Reproducibility comes from the pinned base image tag and
+  # Dependabot instead.
+  - DL3008

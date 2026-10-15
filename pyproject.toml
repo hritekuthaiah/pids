@@ -1,0 +1,101 @@
+# Workspace root. This file is virtual (not an installable package): it pins the
+# Python toolchain, declares the uv workspace, and holds shared tool config so
+# every Python package in the monorepo is linted, typed and tested the same way.
+[project]
+name = "pids-workspace"
+version = "0.0.0"
+description = "PIDS — Autonomous Perimeter Intrusion Detection System (monorepo root)"
+requires-python = ">=3.12"
+readme = "README.md"
+license = "AGPL-3.0-or-later"
+
+[tool.uv]
+package = false
+
+[tool.uv.workspace]
+members = ["packages/core"]
+
+[dependency-groups]
+dev = [
+  "ruff>=0.14",
+  "mypy>=1.18",
+  "pytest>=8.4",
+  "pytest-asyncio>=1.2",
+  "pytest-cov>=7.0",
+  "hypothesis>=6.140",
+]
+
+# ---------------------------------------------------------------------------
+# Ruff — lint + format
+# ---------------------------------------------------------------------------
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+extend-exclude = ["**/migrations/versions"]
+
+[tool.ruff.lint]
+select = [
+  "E", "W", "F",   # pycodestyle / pyflakes
+  "I",             # isort
+  "B",             # bugbear
+  "UP",            # pyupgrade
+  "SIM",           # simplify
+  "N",             # naming
+  "S",             # bandit (security)
+  "ASYNC",         # async pitfalls
+  "C4",            # comprehensions
+  "DTZ",           # naive datetimes are bugs in a time-critical system
+  "T20",           # no print() — use structured logging
+  "PT",            # pytest style
+  "PTH",           # pathlib
+  "PERF",          # performance anti-patterns
+  "RUF",
+]
+ignore = ["E501"]  # the formatter owns line length
+
+[tool.ruff.lint.per-file-ignores]
+"**/tests/**" = ["S101", "S311", "PLR2004"]
+"**/scripts/**" = ["T20"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["pids_core", "pids_sim", "pids_server", "pids_edge", "pids_ml"]
+
+# ---------------------------------------------------------------------------
+# mypy — strict everywhere; third-party stubs handled per-module as they arrive
+# ---------------------------------------------------------------------------
+[tool.mypy]
+python_version = "3.12"
+strict = true
+warn_unreachable = true
+pretty = true
+plugins = ["pydantic.mypy"]
+mypy_path = "packages/core/src"
+explicit_package_bases = true
+
+[[tool.mypy.overrides]]
+module = ["shapely.*", "sklearn.*", "joblib.*"]
+ignore_missing_imports = true
+
+# ---------------------------------------------------------------------------
+# pytest + coverage
+# ---------------------------------------------------------------------------
+[tool.pytest.ini_options]
+minversion = "8.0"
+addopts = "-ra --strict-markers --strict-config --import-mode=importlib"
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+testpaths = ["packages/core/tests"]
+markers = [
+  "integration: needs the docker compose stack (Postgres/Redis/MQTT)",
+  "slow: long-running (model training, large simulations)",
+]
+filterwarnings = ["error"]
+
+[tool.coverage.run]
+branch = true
+source = ["pids_core"]
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = true
+exclude_also = ["if TYPE_CHECKING:", "raise NotImplementedError", "@overload"]

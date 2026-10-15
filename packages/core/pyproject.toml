@@ -1,0 +1,27 @@
+[project]
+name = "pids-core"
+version = "0.1.0"
+description = "PIDS domain core: contracts, geofencing, fusion, threat scoring, tracking maths. Pure — no I/O."
+readme = "README.md"
+requires-python = ">=3.12"
+license = "AGPL-3.0-or-later"
+authors = [
+  { name = "Hritek Uthaiah M J" },
+  { name = "Y Akhil" },
+  { name = "Dhanush V Kokare" },
+  { name = "Abhishek K Chawan" },
+]
+dependencies = [
+  "pydantic>=2.11",
+  "numpy>=2.2",
+  "shapely>=2.1",
+  "pyproj>=3.7",
+  "pyyaml>=6.0",
+]
+
+[build-system]
+requires = ["uv_build>=0.11,<0.12"]
+build-backend = "uv_build"
+
+[tool.uv.build-backend]
+module-name = "pids_core"

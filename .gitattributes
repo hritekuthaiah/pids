@@ -1,0 +1,9 @@
+* text=auto eol=lf
+*.png binary
+*.jpg binary
+*.pdf binary
+*.onnx binary
+*.sh text eol=lf
+pnpm-lock.yaml linguist-generated=true -diff
+uv.lock linguist-generated=true -diff
+packages/contracts/src/generated/** linguist-generated=true

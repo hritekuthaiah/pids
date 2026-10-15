@@ -1,0 +1,14 @@
+{
+  "recommendations": [
+    "charliermarsh.ruff",
+    "ms-python.python",
+    "ms-python.mypy-type-checker",
+    "ms-azuretools.vscode-containers",
+    "dbaeumer.vscode-eslint",
+    "esbenp.prettier-vscode",
+    "editorconfig.editorconfig",
+    "tamasfe.even-better-toml",
+    "redhat.vscode-yaml",
+    "bierner.markdown-mermaid"
+  ]
+}
