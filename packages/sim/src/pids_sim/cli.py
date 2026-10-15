@@ -20,7 +20,7 @@ from pids_sim.runner import Engine, run
 from pids_sim.scenarios import Family, ScenarioSpec
 
 ENGINES: dict[str, Callable[[Site], Engine]] = {
-    "pids": lambda s: DecisionEngine(s),
+    "pids": DecisionEngine,
     "line-crossing": lambda s: NaiveGeofence(s, "line-crossing"),
     "gps-only": lambda s: NaiveGeofence(s, "gps-only"),
 }

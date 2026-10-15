@@ -17,4 +17,5 @@ from pids_core.features import TrackFeatures
 class AnomalyScorer(Protocol):
     """Maps behavioural features to an anomaly score in [0, 1] (1 = most anomalous)."""
 
-    def score(self, features: TrackFeatures) -> float: ...
+    def score(self, features: TrackFeatures) -> float:
+        """Anomaly score in [0, 1] for one feature vector."""
