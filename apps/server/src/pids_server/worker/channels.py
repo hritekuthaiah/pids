@@ -28,7 +28,8 @@ class Dispatch:
 class Channel(Protocol):
     name: str
 
-    async def send(self, alert: AlertOut, recipients: list[str]) -> Dispatch: ...
+    async def send(self, alert: AlertOut, recipients: list[str]) -> Dispatch:
+        """Deliver ``alert`` to ``recipients`` (channel-specific addresses)."""
 
 
 def headline(a: AlertOut) -> tuple[str, str]:
