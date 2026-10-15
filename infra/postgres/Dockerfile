@@ -4,7 +4,7 @@
 # runs under emulation on Apple Silicon and on a Raspberry Pi. Building on the
 # official postgres image and pulling extensions from the PGDG apt repository it
 # already trusts gives native images on both architectures with no third party.
-FROM postgres:17-bookworm
+FROM postgres:18-bookworm
 
 ARG PG_MAJOR=17
 
