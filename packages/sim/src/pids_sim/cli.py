@@ -40,7 +40,41 @@ def summarise(name: str, outcomes: list[RunOutcome]) -> str:
     )
 
 
+def live(argv: list[str]) -> int:
+    """Stream scenarios to MQTT in real time (needs the broker and MQTT_SIM_* env)."""
+    import logging
+    import os
+
+    from pids_sim.live import stream
+
+    ap = argparse.ArgumentParser(prog="pids-sim live")
+    ap.add_argument("--site", type=Path, default=Path("config/sites/site-alpha.yaml"))
+    ap.add_argument("--family", choices=[f.value for f in Family], default="intrusion-foot")
+    ap.add_argument("--seed", type=int, default=7)
+    ap.add_argument("--duration", type=float, default=300.0)
+    ap.add_argument("--loop", action="store_true", help="repeat with successive seeds")
+    args = ap.parse_args(argv)
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(message)s")
+    site = Site.from_yaml(args.site)
+    seed = args.seed
+    while True:
+        stream(
+            site,
+            ScenarioSpec(seed=seed, family=Family(args.family), duration_s=args.duration),
+            host=os.environ.get("MQTT_HOST", "localhost"),
+            port=int(os.environ.get("MQTT_PORT", "1883")),
+            username=os.environ.get("MQTT_SIM_USER", "pids-sim"),
+            password=os.environ["MQTT_SIM_PASSWORD"],
+        )
+        if not args.loop:
+            return 0
+        seed += 1
+
+
 def main(argv: list[str] | None = None) -> int:
+    argv = sys.argv[1:] if argv is None else argv
+    if argv and argv[0] == "live":
+        return live(argv[1:])
     ap = argparse.ArgumentParser(prog="pids-sim", description=__doc__)
     ap.add_argument("--site", type=Path, default=Path("config/sites/site-alpha.yaml"))
     ap.add_argument("-n", "--per-family", type=int, default=5)
