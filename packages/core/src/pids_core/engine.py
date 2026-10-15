@@ -24,10 +24,14 @@ Per ``step(now)``:
 from __future__ import annotations
 
 import math
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Literal
+from pathlib import Path
+from typing import Any, Literal
 from zoneinfo import ZoneInfo
+
+from pydantic import BaseModel, ConfigDict, Field
 
 from pids_core.alerts import AlertPolicy, AlertTracker
 from pids_core.anomaly import AnomalyScorer
@@ -44,7 +48,7 @@ from pids_core.contracts import (
     ZoneKind,
 )
 from pids_core.coverage import Coverage, sector
-from pids_core.features import Sample, TrackHistory, extract
+from pids_core.features import Sample, TrackFeatures, TrackHistory, extract
 from pids_core.fusion import Evidence, FusionWeights, fuse
 from pids_core.geo import Enu
 from pids_core.kalman import KalmanCV
@@ -60,7 +64,9 @@ _ACCEL_PSD = {
     EntityClass.ANIMAL: 0.4,
     EntityClass.UNKNOWN: 0.4,
 }
-_GPS_ACCEL_PSD = 0.3
+_GPS_ACCEL_PSD = {TagKind.PERSON: 0.3, TagKind.VEHICLE: 1.5, TagKind.ASSET: 0.3}
+# A link is ambiguous unless the best candidate is clearly nearer than the next.
+_AMBIGUITY_RATIO = 0.5
 _TAG_TO_CLASS = {
     TagKind.PERSON: EntityClass.PERSON,
     TagKind.VEHICLE: EntityClass.VEHICLE,
@@ -69,9 +75,22 @@ _TAG_TO_CLASS = {
 _COMPATIBLE = {
     TagKind.PERSON: {EntityClass.PERSON, EntityClass.UNKNOWN},
     TagKind.VEHICLE: {EntityClass.VEHICLE, EntityClass.UNKNOWN},
-    TagKind.ASSET: set(EntityClass),
+    # Crated assets are invisible to cameras; never bind one to a passer-by.
+    TagKind.ASSET: set(),
 }
 _CLASS_EMA = 0.3
+_ANOMALY_REFRESH_S = 1.0
+_STITCH_WINDOW_S = 4.0
+_STITCH_GATE_M = 8.0
+# A forecast breach only counts if the entity is closing on the boundary: the
+# straight-line distance covered per second must be a real fraction of its speed.
+_MIN_CLOSING_RATIO = 0.35
+# Velocity from a brand-new track is mostly prior; do not forecast from it.
+_FORECAST_MIN_AGE_S = 2.0
+
+
+FeatureHook = Callable[[str, float, TrackFeatures], None]
+"""Observer called with (entity_id, time, features) whenever features are computed."""
 
 
 class EngineConfig:
@@ -106,7 +125,7 @@ class _Entity:
     trace: dict[str, datetime] = field(default_factory=dict)
     # vision
     class_probs: dict[EntityClass, float] = field(default_factory=dict)
-    hits: int = 0
+    first_t: float = 0.0
     thermal: bool | None = None
     edge_anomaly: float | None = None
     linked_tag: str | None = None
@@ -116,6 +135,9 @@ class _Entity:
     tag_kind: TagKind = TagKind.PERSON
     spoof: SpoofMonitor | None = None
     linked_vision: str | None = None
+    # cached behavioural score
+    anomaly: float | None = None
+    anomaly_t: float | None = None
 
     def entity_class(self) -> tuple[EntityClass, float]:
         if not self.class_probs:
@@ -136,18 +158,22 @@ class DecisionEngine:
         site: Site,
         config: EngineConfig | None = None,
         anomaly_scorer: AnomalyScorer | None = None,
+        on_features: FeatureHook | None = None,
     ) -> None:
         self.site = site
         self.config = config or EngineConfig()
         self.scorer = anomaly_scorer
+        self.on_features = on_features
         self.alerts = AlertTracker(policy=self.config.alerts, site_id=site.id)
         self._entities: dict[str, _Entity] = {}
         self._pending_reads: list[TagRead] = []
         self._last_step_t: float | None = None
         self._tz = ZoneInfo(site.config.site.timezone)
-        self._coverage = Coverage(
+        # Where a camera detects reliably (inner 70% of its range): only there does
+        # *not* seeing a tagged person count as evidence against the tag.
+        self._reliable_view = Coverage(
             {
-                n.id: sector(n.position, n.heading_deg, n.fov_deg, n.range_m)
+                n.id: sector(n.position, n.heading_deg, n.fov_deg, 0.7 * n.range_m)
                 for n in site.config.nodes
             }
         )
@@ -170,9 +196,11 @@ class DecisionEngine:
                     ),
                     history=TrackHistory(),
                     last_t=t,
+                    first_t=t,
                     sigma_m=tr.position_sigma_m,
                     source=f"vision:{batch.node_id}",
                 )
+                self._stitch(ent, batch.node_id, t)
                 self._entities[eid] = ent
             elif t > ent.last_t:
                 ent.kf.update(t, p.east, p.north, tr.position_sigma_m)
@@ -180,12 +208,44 @@ class DecisionEngine:
                 continue
             ent.last_t = t
             ent.sigma_m = tr.position_sigma_m
-            ent.hits = tr.hits
             ent.thermal = tr.thermal_confirmed
             ent.edge_anomaly = tr.anomaly_score
             ent.trace = dict(batch.trace)
             _update_class(ent, tr.entity_class, tr.class_confidence)
             self._record(ent, t)
+
+    def _stitch(self, new: _Entity, node_id: str, t: float) -> None:
+        """Carry identity across a tracker re-acquisition (motion-based, not appearance).
+
+        When a camera loses a person for a few seconds the tracker starts a new ID.
+        If a track on the same node ended moments ago where this one begins, the new
+        track inherits its tag identity and class belief — otherwise a badge read at
+        the gate would be forgotten the first time the guard walks behind a pillar.
+        """
+        best: tuple[float, _Entity] | None = None
+        for old in self._entities.values():
+            if (
+                old.kind != "vision"
+                or not old.source.endswith(node_id)
+                or not 0.0 < t - old.last_t <= _STITCH_WINDOW_S
+                or (old.rfid_tag is None and not old.class_probs)
+            ):
+                continue
+            predicted = Enu(*old.kf.forecast(t - old.kf.t))
+            d = predicted.distance_to(Enu(*new.kf.position))
+            if d <= max(_STITCH_GATE_M, 3.0 * old.sigma_m) and (best is None or d < best[0]):
+                best = (d, old)
+        if best is not None:
+            old = best[1]
+            new.rfid_tag = old.rfid_tag
+            new.class_probs = dict(old.class_probs)
+            new.first_t = old.first_t
+            if old.linked_tag is not None:
+                tag = self._entities.get(f"tag/{old.linked_tag}")
+                if tag is not None and tag.linked_vision == old.entity_id:
+                    tag.linked_vision = new.entity_id
+                    new.linked_tag = old.linked_tag
+                    old.linked_tag = None
 
     def ingest_gps(self, fix: GpsFix, received_at: datetime | None = None) -> None:
         t = fix.at.timestamp()
@@ -199,9 +259,12 @@ class DecisionEngine:
             ent = _Entity(
                 entity_id=eid,
                 kind="tag",
-                kf=KalmanCV.initialise(t, p.east, p.north, fix.accuracy_m, None, _GPS_ACCEL_PSD),
+                kf=KalmanCV.initialise(
+                    t, p.east, p.north, fix.accuracy_m, None, _GPS_ACCEL_PSD[kind]
+                ),
                 history=TrackHistory(),
                 last_t=t,
+                first_t=t,
                 sigma_m=fix.accuracy_m,
                 source=f"gps:{fix.tag_id}",
                 tag_id=fix.tag_id,
@@ -262,45 +325,54 @@ class DecisionEngine:
         return [e for e in self._entities.values() if e.kind == kind and t - e.last_t <= limit]
 
     def _gate(self, v: _Entity, g: _Entity) -> float:
-        return max(8.0, 3.0 * math.hypot(v.sigma_m, g.sigma_m))
+        # Position error of both sensors plus ~0.5 s of timing skew at current speed.
+        return max(8.0, 3.0 * math.hypot(v.sigma_m, g.sigma_m) + 0.5 * v.kf.speed)
+
+    def _alive(self, e: _Entity, t: float) -> bool:
+        return t - e.last_t <= self.config.alerts.lost_after_s
 
     def _associate(self, t: float) -> None:
-        vision = {e.entity_id: e for e in self._fresh("vision", t)}
-        tags = {e.entity_id: e for e in self._fresh("tag", t)}
-
-        # Break stale or stretched links (hysteresis: 2x gate to keep, 1x to make).
+        # Keep existing links while both sides are alive and still agree (2x gate,
+        # compared at positions predicted to now); freshness only gates *new* links,
+        # so a camera missing a guard for a second does not strip their identity.
         for g in self._entities.values():
             if g.kind != "tag" or g.linked_vision is None:
                 continue
-            v_linked = vision.get(g.linked_vision)
+            v = self._entities.get(g.linked_vision)
             if (
-                g.entity_id not in tags
-                or v_linked is None
-                or _dist(v_linked, g) > 2.0 * self._gate(v_linked, g)
+                v is None
+                or not self._alive(v, t)
+                or not self._alive(g, t)
+                or _dist_at(v, g, t) > 2.0 * self._gate(v, g)
             ):
-                stale = self._entities.get(g.linked_vision)
-                if stale is not None:
-                    stale.linked_tag = None
+                if v is not None:
+                    v.linked_tag = None
                 g.linked_vision = None
 
-        candidates = []
-        for g in tags.values():
+        # New links: identity is granted only when it is unambiguous. A tag binds to
+        # a camera track only if that track is the clear single candidate in the gate
+        # and their motion agrees. If two people stand near one tag, nobody gets the
+        # whitelist — an intruder must never inherit a guard's identity by walking
+        # past them (recall first).
+        vision = [v for v in self._fresh("vision", t) if v.linked_tag is None]
+        for g in self._fresh("tag", t):
             if g.linked_vision is not None:
                 continue
-            for v in vision.values():
-                if v.linked_tag is not None:
-                    continue
-                cls, _ = v.entity_class()
-                if cls not in _COMPATIBLE[g.tag_kind]:
-                    continue
-                d = _dist(v, g)
-                if d <= self._gate(v, g):
-                    candidates.append((d, v.entity_id, g.entity_id))
-        for _, vid, gid in sorted(candidates):
-            v, g = self._entities[vid], self._entities[gid]
-            if v.linked_tag is None and g.linked_vision is None:
-                v.linked_tag = g.tag_id
-                g.linked_vision = vid
+            in_gate = sorted(
+                (_dist_at(v, g, t), v)
+                for v in vision
+                if v.entity_class()[0] in _COMPATIBLE[g.tag_kind]
+                and _dist_at(v, g, t) <= self._gate(v, g)
+                and _motion_agrees(v, g)
+            )
+            if not in_gate:
+                continue
+            if len(in_gate) > 1 and in_gate[0][0] > _AMBIGUITY_RATIO * in_gate[1][0]:
+                continue
+            v = in_gate[0][1]
+            v.linked_tag = g.tag_id
+            g.linked_vision = v.entity_id
+            vision.remove(v)
 
     def _apply_tag_reads(self) -> None:
         reads, self._pending_reads = self._pending_reads, []
@@ -324,9 +396,9 @@ class DecisionEngine:
         if dt <= 0.0:
             return
         for g in self._fresh("tag", t):
-            if g.spoof is None:
+            if g.spoof is None or g.tag_kind is TagKind.ASSET:
                 continue
-            in_view = self._coverage.covers(Enu(*g.kf.position))
+            in_view = self._reliable_view.covers(Enu(*g.kf.position))
             g.spoof.observe_vision(in_view, g.linked_vision is not None, dt, t)
 
     # -------------------------------------------------------------- assessment
@@ -358,10 +430,10 @@ class DecisionEngine:
             cls, conf = ent.entity_class()
             ev_class: EntityClass | None = cls
             ev_conf: float | None = conf
-            hits: int | None = ent.hits
+            age: float | None = t - ent.first_t
             thermal = ent.thermal
         else:
-            cls, ev_class, ev_conf, hits, thermal = (
+            cls, ev_class, ev_conf, age, thermal = (
                 _TAG_TO_CLASS[ent.tag_kind],
                 None,
                 None,
@@ -369,21 +441,24 @@ class DecisionEngine:
                 None,
             )
 
-        features = extract(ent.history, zones, t, local_hour)
         anomaly = ent.edge_anomaly
-        if anomaly is None and self.scorer is not None and features is not None:
-            anomaly = float(self.scorer.score(features))
+        if anomaly is None and (self.scorer is not None or self.on_features is not None):
+            anomaly = self._anomaly(ent, t, local_hour)
 
         ttb: float | None = None
         predicted_zone: str | None = None
         velocity = ent.kf.velocity
         speed = ent.kf.speed
-        if hit.kind is not ZoneKind.CRITICAL and ent.kf.velocity_sigma < max(0.6, 0.5 * speed):
+        settled = t - ent.first_t >= _FORECAST_MIN_AGE_S
+        precise = ent.kf.velocity_sigma < max(0.8, 0.5 * speed)
+        if hit.kind is not ZoneKind.CRITICAL and settled and precise:
             entry = zones.predict_entry(
                 ZoneKind.CRITICAL, pos, velocity, self.config.forecast_horizon_s
             )
-            if entry is not None:
-                ttb, predicted_zone = entry.seconds, entry.zone.id
+            if entry is not None and entry.seconds > 0:
+                gap = max(zones.distance_to_kind(ZoneKind.CRITICAL, pos), 0.0)
+                if gap / entry.seconds >= _MIN_CLOSING_RATIO * speed:
+                    ttb, predicted_zone = entry.seconds, entry.zone.id
 
         containment_breach = home_zone is not None and not zones.contains(home_zone, pos)
 
@@ -392,7 +467,7 @@ class DecisionEngine:
                 zone_kind=hit.kind,
                 entity_class=ev_class,
                 class_confidence=ev_conf,
-                hits=hits,
+                track_age_s=age,
                 thermal_confirmed=thermal,
                 anomaly_score=anomaly,
                 time_to_breach_s=ttb,
@@ -407,7 +482,7 @@ class DecisionEngine:
                 zone_kind=hit.kind,
                 entity_class=ev_class,
                 class_confidence=ev_conf,
-                hits=hits,
+                track_age_s=age,
                 authorized=authorized,
                 spoof_suspicion=spoof,
                 time_to_breach_s=ttb,
@@ -449,6 +524,25 @@ class DecisionEngine:
             trace={**ent.trace, "decided": now},
         )
 
+    def _anomaly(self, ent: _Entity, t: float, local_hour: float) -> float | None:
+        """Behavioural anomaly score, refreshed at most once per ``_ANOMALY_REFRESH_S``.
+
+        The features summarise a 30-second window, so re-scoring every frame adds
+        cost without information.
+        """
+        if ent.anomaly_t is not None and t - ent.anomaly_t < _ANOMALY_REFRESH_S:
+            return ent.anomaly
+        features = extract(ent.history, self.site.zones, t, local_hour)
+        if features is not None and self.on_features is not None:
+            self.on_features(ent.entity_id, t, features)
+        ent.anomaly = (
+            float(self.scorer.score(features))
+            if features is not None and self.scorer is not None
+            else None
+        )
+        ent.anomaly_t = t
+        return ent.anomaly
+
     def _expire(self, t: float) -> None:
         for eid in [
             eid for eid, e in self._entities.items() if t - e.last_t > self.config.entity_ttl_s
@@ -481,10 +575,45 @@ def _update_class(ent: _Entity, cls: EntityClass, conf: float) -> None:
         ent.class_probs[c] = (1 - _CLASS_EMA) * ent.class_probs.get(c, 0.0) + _CLASS_EMA * target[c]
 
 
-def _dist(a: _Entity, b: _Entity) -> float:
-    return Enu(*a.kf.position).distance_to(Enu(*b.kf.position))
+def _motion_agrees(v: _Entity, g: _Entity) -> bool:
+    """Both stationary, or moving in a similar direction at a similar speed."""
+    sv, sg = v.kf.speed, g.kf.speed
+    if sv < 0.6 or sg < 0.6:
+        return abs(sv - sg) < 1.5
+    ve, vn = v.kf.velocity
+    ge, gn = g.kf.velocity
+    cos = (ve * ge + vn * gn) / (sv * sg)
+    return cos > 0.7 and 0.5 < sv / sg < 2.0
+
+
+def _dist_at(a: _Entity, b: _Entity, t: float) -> float:
+    """Distance between two entities with both filters extrapolated to time ``t``."""
+    pa = Enu(*a.kf.forecast(max(t - a.kf.t, 0.0)))
+    pb = Enu(*b.kf.forecast(max(t - b.kf.t, 0.0)))
+    return pa.distance_to(pb)
 
 
 def _local_hour(now: datetime, tz: ZoneInfo) -> float:
     local = now.astimezone(tz)
     return local.hour + local.minute / 60.0 + local.second / 3600.0
+
+
+class DecisionModel(BaseModel):
+    """A versioned operating point: fusion weights + scoring thresholds, as one file.
+
+    Weights and thresholds are only meaningful together (a threshold is chosen for
+    a particular calibration), so they are shipped and loaded as a unit.
+    """
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    fusion: FusionWeights = Field(default_factory=FusionWeights)
+    scoring: ScoringPolicy = Field(default_factory=ScoringPolicy)
+    notes: str = ""
+
+    @classmethod
+    def load(cls, path: str | Path) -> DecisionModel:
+        return cls.model_validate_json(Path(path).read_text(encoding="utf-8"))
+
+    def engine_config(self, **overrides: Any) -> EngineConfig:
+        return EngineConfig(fusion=self.fusion, scoring=self.scoring, **overrides)

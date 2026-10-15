@@ -72,8 +72,12 @@ def test_head_on_approach_has_positive_approach_rate(site: Site) -> None:
 
 def test_fence_walker_moves_parallel_to_the_boundary(site: Site) -> None:
     f = _features(site, [(i, -80.0 + 1.0 * i, 115.0) for i in range(25)])
-    assert f.boundary_parallel > 0.95
+    assert f.boundary_parallel > 0.6
     assert abs(f.approach_rate) < 0.1
+    assert f.near_fence_s == 24.0
+    far = _features(site, [(i, -80.0 + 1.0 * i, 200.0) for i in range(25)])
+    assert far.boundary_parallel < 0.15
+    assert far.near_fence_s == 0.0
 
 
 def test_loiterer_dwells_and_stops(site: Site) -> None:
@@ -100,7 +104,7 @@ def test_features_need_enough_history(site: Site) -> None:
 
 def test_feature_vector_order_is_stable() -> None:
     assert TrackFeatures.names()[0] == "speed_mean"
-    assert len(TrackFeatures.names()) == 12
+    assert len(TrackFeatures.names()) == 13
 
 
 def test_history_rejects_out_of_order_and_tracks_dwell() -> None:

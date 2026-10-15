@@ -41,8 +41,9 @@ zones:
     actions:
       critical: [dashboard, push, siren, email]
 
-# Camera nodes. edge-01 is the live demo camera on the north fence; edge-02/03
-# exist in simulation (and in the target deployment) to cover the other approaches.
+# Camera nodes. edge-01 is the live demo camera on the north fence; edge-02..04
+# exist in simulation (and in the target deployment) to cover the other approaches
+# and the compound interior.
 nodes:
   - id: edge-01
     position: [0, 100]
@@ -61,6 +62,13 @@ nodes:
     heading_deg: 100
     fov_deg: 100
     range_m: 160
+  # Mast camera in the middle of the compound: sees the interior, so a breach
+  # past the fence line is observed (and escalates) rather than inferred.
+  - id: edge-04
+    position: [0, 0]
+    heading_deg: 0
+    fov_deg: 360
+    range_m: 110
 
 readers:
   - id: gate-south

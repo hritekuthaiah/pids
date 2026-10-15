@@ -57,6 +57,8 @@ TERMS: tuple[str, ...] = (
 )
 
 IMMINENCE_TAU_S = 30.0
+PERSISTENCE_FULL_S = 5.0
+EXISTENCE_FULL_S = 3.0
 
 
 @dataclass(frozen=True, slots=True)
@@ -66,7 +68,7 @@ class Evidence:
     zone_kind: ZoneKind | None
     entity_class: EntityClass | None
     class_confidence: float | None
-    hits: int | None
+    track_age_s: float | None
     thermal_confirmed: bool | None
     anomaly_score: float | None
     time_to_breach_s: float | None
@@ -125,16 +127,26 @@ def terms(ev: Evidence) -> dict[str, float | None]:
     """
     t: dict[str, float | None] = dict.fromkeys(TERMS)
 
-    t["zone_warning"] = 1.0 if ev.zone_kind is ZoneKind.WARNING else 0.0
-    t["zone_critical"] = 1.0 if ev.zone_kind is ZoneKind.CRITICAL else 0.0
+    # Where an entity is only matters to the extent that it exists: a 1-second,
+    # 0.35-confidence detection inside the compound is probably foliage, not an
+    # intruder. Zone terms are therefore scaled by an existence belief built from
+    # detector confidence and track age. Cooperative GPS tags exist by definition.
+    existence = 1.0
+    if ev.class_confidence is not None and ev.track_age_s is not None:
+        conf_part = min(max((ev.class_confidence - 0.3) / 0.4, 0.0), 1.0)
+        age_part = min(max(ev.track_age_s, 0.0) / EXISTENCE_FULL_S, 1.0)
+        existence = conf_part * age_part
+    t["zone_warning"] = existence if ev.zone_kind is ZoneKind.WARNING else 0.0
+    t["zone_critical"] = existence if ev.zone_kind is ZoneKind.CRITICAL else 0.0
 
     if ev.entity_class is not None and ev.class_confidence is not None:
         conf = min(max(ev.class_confidence, 0.0), 1.0)
         t["class_person"] = conf if ev.entity_class is EntityClass.PERSON else 0.0
         t["class_vehicle"] = conf if ev.entity_class is EntityClass.VEHICLE else 0.0
         t["class_animal"] = conf if ev.entity_class is EntityClass.ANIMAL else 0.0
-    if ev.hits is not None:
-        t["persistence"] = min(ev.hits / 15.0, 1.0)
+    if ev.track_age_s is not None:
+        # Seconds, not frames: the evidence must not depend on the camera frame rate.
+        t["persistence"] = min(max(ev.track_age_s, 0.0) / PERSISTENCE_FULL_S, 1.0)
 
     if ev.thermal_confirmed is not None:
         t["thermal_present"] = 1.0 if ev.thermal_confirmed else 0.0

@@ -36,8 +36,8 @@ class ScoringPolicy(BaseModel):
     warning_at: float = 0.50
     critical_at: float = 0.50
     predicted_breach_horizon_s: float = 30.0
-    floor_min_confidence: float = 0.40
-    floor_min_hits: int = 5
+    floor_min_confidence: float = 0.45
+    floor_min_age_s: float = 3.0
 
 
 @dataclass(frozen=True, slots=True)
@@ -46,7 +46,7 @@ class ScoreInput:
     zone_kind: ZoneKind | None
     entity_class: EntityClass | None
     class_confidence: float | None
-    hits: int | None
+    track_age_s: float | None
     authorized: bool
     spoof_suspicion: float
     time_to_breach_s: float | None
@@ -83,7 +83,7 @@ def score(inp: ScoreInput, policy: ScoringPolicy) -> Score:
         and not trusted_tag
         and inp.entity_class in (EntityClass.PERSON, EntityClass.VEHICLE)
         and (inp.class_confidence or 0.0) >= policy.floor_min_confidence
-        and (inp.hits or 0) >= policy.floor_min_hits
+        and (inp.track_age_s or 0.0) >= policy.floor_min_age_s
         and level < ThreatLevel.WARNING
     ):
         level = ThreatLevel.WARNING
