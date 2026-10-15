@@ -1,0 +1,70 @@
+"""Names and payload helpers for the internal message buses.
+
+MQTT carries device telemetry (edge -> platform). Redis carries everything inside
+the platform: pub/sub for realtime fan-out to WebSocket clients, a durable stream
+for notification jobs, and a key holding the latest live snapshot per site.
+"""
+
+from __future__ import annotations
+
+from typing import Any
+
+import orjson
+from pydantic import BaseModel
+
+
+def mqtt_telemetry(site_id: str, stream: str) -> str:
+    """Subscription filter for one telemetry stream from every node of a site."""
+    return f"pids/{site_id}/+/{stream}"
+
+
+def mqtt_publish(site_id: str, node_id: str, stream: str) -> str:
+    return f"pids/{site_id}/{node_id}/{stream}"
+
+
+def mqtt_command(site_id: str, node_id: str, name: str) -> str:
+    return f"pids/{site_id}/{node_id}/cmd/{name}"
+
+
+API_NODE = "api"  # node id under which the API publishes guard-phone GPS fixes
+
+
+def live_channel(site_id: str) -> str:
+    return f"pids:{site_id}:live"
+
+
+def alerts_channel(site_id: str) -> str:
+    return f"pids:{site_id}:alerts"
+
+
+def config_channel(site_id: str) -> str:
+    return f"pids:{site_id}:config"
+
+
+def live_key(site_id: str) -> str:
+    return f"pids:{site_id}:live:latest"
+
+
+NOTIFY_STREAM = "pids:notify"
+NOTIFY_GROUP = "notifiers"
+
+
+def ws_ticket_key(ticket: str) -> str:
+    return f"pids:wsticket:{ticket}"
+
+
+def dumps(obj: Any) -> bytes:
+    """Fast JSON for bus payloads; pydantic models serialise in JSON mode."""
+    if isinstance(obj, BaseModel):
+        return orjson.dumps(obj.model_dump(mode="json"))
+    return orjson.dumps(obj, default=_default)
+
+
+def _default(o: Any) -> Any:
+    if isinstance(o, BaseModel):
+        return o.model_dump(mode="json")
+    raise TypeError(f"not JSON serialisable: {type(o).__name__}")
+
+
+def loads(raw: bytes | str) -> Any:
+    return orjson.loads(raw)
