@@ -13,7 +13,7 @@ license = "AGPL-3.0-or-later"
 package = false
 
 [tool.uv.workspace]
-members = ["packages/core"]
+members = ["packages/core", "packages/sim", "ml"]
 
 [dependency-groups]
 dev = [
@@ -70,11 +70,11 @@ strict = true
 warn_unreachable = true
 pretty = true
 plugins = ["pydantic.mypy"]
-mypy_path = "packages/core/src"
+mypy_path = "packages/core/src:packages/sim/src:ml/src"
 explicit_package_bases = true
 
 [[tool.mypy.overrides]]
-module = ["shapely.*", "sklearn.*", "joblib.*"]
+module = ["shapely.*", "sklearn.*", "joblib.*", "scipy.*"]
 ignore_missing_imports = true
 
 # ---------------------------------------------------------------------------
@@ -85,7 +85,7 @@ minversion = "8.0"
 addopts = "-ra --strict-markers --strict-config --import-mode=importlib"
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
-testpaths = ["packages/core/tests"]
+testpaths = ["packages/core/tests", "packages/sim/tests", "ml/tests"]
 pythonpath = ["packages/core/tests"]
 markers = [
   "integration: needs the docker compose stack (Postgres/Redis/MQTT)",
@@ -95,7 +95,7 @@ filterwarnings = ["error"]
 
 [tool.coverage.run]
 branch = true
-source = ["pids_core"]
+source = ["pids_core", "pids_sim", "pids_ml"]
 
 [tool.coverage.report]
 show_missing = true
