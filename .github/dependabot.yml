@@ -19,3 +19,8 @@ updates:
     directories: [/infra/postgres]
     schedule: { interval: weekly }
     commit-message: { prefix: build }
+    ignore:
+      # A Postgres major upgrade needs a planned data migration (pg_upgrade or
+      # dump/restore) — never an automatic bump.
+      - dependency-name: postgres
+        update-types: [version-update:semver-major]
