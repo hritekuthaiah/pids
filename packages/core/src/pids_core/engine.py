@@ -159,12 +159,16 @@ class DecisionEngine:
         config: EngineConfig | None = None,
         anomaly_scorer: AnomalyScorer | None = None,
         on_features: FeatureHook | None = None,
+        run_id: str | None = None,
     ) -> None:
+        """``run_id`` namespaces alert ids so they stay unique across service restarts
+        (entity ids such as tracker numbers restart from 1)."""
         self.site = site
         self.config = config or EngineConfig()
         self.scorer = anomaly_scorer
         self.on_features = on_features
-        self.alerts = AlertTracker(policy=self.config.alerts, site_id=site.id)
+        namespace = site.id if run_id is None else f"{site.id}@{run_id}"
+        self.alerts = AlertTracker(policy=self.config.alerts, site_id=namespace)
         self._entities: dict[str, _Entity] = {}
         self._pending_reads: list[TagRead] = []
         self._last_step_t: float | None = None
@@ -556,8 +560,10 @@ class DecisionEngine:
                 v = self._entities.get(ent.linked_vision)
                 if v is not None:
                     v.linked_tag = None
-            if self.alerts.active(eid) is None:
-                self.alerts.forget(eid)
+            # The persisted alert stays open for the operator; the state machine
+            # forgets the entity so a later track reusing this id (edge node
+            # restarts reuse tracker ids) starts a fresh episode.
+            self.alerts.forget(eid)
 
 
 def _update_class(ent: _Entity, cls: EntityClass, conf: float) -> None:
