@@ -23,6 +23,7 @@ dev = [
   "pytest-asyncio>=1.2",
   "pytest-cov>=7.0",
   "hypothesis>=6.140",
+  "types-pyyaml>=6.0.12.20260906",
 ]
 
 # ---------------------------------------------------------------------------
@@ -85,6 +86,7 @@ addopts = "-ra --strict-markers --strict-config --import-mode=importlib"
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
 testpaths = ["packages/core/tests"]
+pythonpath = ["packages/core/tests"]
 markers = [
   "integration: needs the docker compose stack (Postgres/Redis/MQTT)",
   "slow: long-running (model training, large simulations)",
