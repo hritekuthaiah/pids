@@ -96,6 +96,7 @@ services:
     <<: *restart
     profiles: [app]
     image: pids/server:dev
+    pull_policy: never  # built by the migrate service
     command: ["pids-api"]
     env_file: .env
     environment: *app-env
@@ -110,6 +111,7 @@ services:
     <<: *restart
     profiles: [app]
     image: pids/server:dev
+    pull_policy: never  # built by the migrate service
     command: ["pids-decision"]
     env_file: .env
     environment: *app-env
@@ -126,6 +128,7 @@ services:
     <<: *restart
     profiles: [app]
     image: pids/server:dev
+    pull_policy: never  # built by the migrate service
     command: ["pids-worker"]
     env_file: .env
     environment: *app-env
