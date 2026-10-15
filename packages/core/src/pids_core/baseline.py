@@ -65,13 +65,13 @@ class NaiveGeofence:
             )
 
     def ingest_gps(self, fix: GpsFix, received_at: datetime | None = None) -> None:
-        del received_at
+        """Record the fix; arrival time is irrelevant to a naive geofence."""
         self._seen[f"tag/{fix.tag_id}"] = _Seen(
             fix.position, fix.at.timestamp(), EntityClass.UNKNOWN, fix.tag_id
         )
 
     def ingest_tag_read(self, read: TagRead) -> None:
-        del read  # naive geofencing has no notion of proximity identity
+        """Ignored: naive geofencing has no notion of proximity identity."""
 
     def step(self, now: datetime) -> StepResult:
         t = now.timestamp()

@@ -23,10 +23,17 @@ from pids_sim.sensors import Frame, Renderer, SensorParams
 
 
 class Engine(Protocol):
-    def ingest_tracks(self, batch: TrackBatch) -> None: ...
-    def ingest_gps(self, fix: GpsFix, received_at: datetime | None = None) -> None: ...
-    def ingest_tag_read(self, read: TagRead) -> None: ...
-    def step(self, now: datetime) -> StepResult: ...
+    def ingest_tracks(self, batch: TrackBatch) -> None:
+        """Consume one perception cycle from a camera node."""
+
+    def ingest_gps(self, fix: GpsFix, received_at: datetime | None = None) -> None:
+        """Consume one cooperative-tag GPS fix."""
+
+    def ingest_tag_read(self, read: TagRead) -> None:
+        """Consume one RFID/BLE read at a fixed reader."""
+
+    def step(self, now: datetime) -> StepResult:
+        """Advance to ``now`` and return assessments and alert events."""
 
 
 @dataclass(frozen=True, slots=True)
