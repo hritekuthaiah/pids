@@ -108,7 +108,7 @@ async def websocket(ws: WebSocket, ticket: str, site_id: str) -> None:
         for task in pending:
             task.cancel()
     except WebSocketDisconnect:
-        pass
+        log.debug("ws closed by client during initial snapshot", site=site_id)
     finally:
         hub.remove(site_id, client)
         log.info("ws disconnected", site=site_id, user=who["user_id"])

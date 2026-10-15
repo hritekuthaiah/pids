@@ -1,0 +1,5 @@
+name: PIDS CodeQL config
+paths-ignore:
+  # Alembic revision files are generated; their module-level `revision`,
+  # `down_revision`, ... globals are read by Alembic, not by our code.
+  - "**/migrations/versions/**"
