@@ -1,0 +1,85 @@
+# ---------------------------------------------------------------------------
+# Site Alpha — a synthetic forward storage depot used for the demo, the
+# simulator and the evaluation harness.
+#
+# All geometry is in LOCAL METRES relative to `origin` (east, north). It is
+# converted to WGS84 at load time. The server seeds PostGIS from this file and
+# the simulator/evaluation read it directly, so all three agree on geometry.
+# ---------------------------------------------------------------------------
+site:
+  id: site-alpha
+  name: "Site Alpha — Forward Storage Depot (synthetic)"
+  origin: { lat: 13.262000, lon: 77.420000 }
+  timezone: Asia/Kolkata
+
+zones:
+  # Approach band. Entering it is NOT an intrusion by itself: a public road and
+  # grazing animals cross it — the classic nuisance-alarm source for naive
+  # geofencing — but it is watched, and behaviour here matters.
+  - id: perimeter-warning
+    name: Outer Warning Band
+    kind: warning
+    polygon: [[-270, -230], [270, -230], [290, 60], [220, 220], [-270, 220]]
+    actions:
+      warning: [dashboard, push]
+      critical: [dashboard, push, siren]
+
+  # The compound itself. Entering it unauthorised IS the intrusion.
+  - id: compound-critical
+    name: Inner Compound
+    kind: critical
+    polygon: [[-150, -100], [150, -100], [165, 30], [120, 100], [-150, 100]]
+    actions:
+      warning: [dashboard, push]
+      critical: [dashboard, push, siren, email]
+
+  # Containment: tagged assets homed here must not leave.
+  - id: armoury
+    name: Armoury
+    kind: containment
+    polygon: [[-40, -20], [20, -20], [20, 30], [-40, 30]]
+    actions:
+      critical: [dashboard, push, siren, email]
+
+# Camera nodes. edge-01 is the live demo camera on the north fence; edge-02/03
+# exist in simulation (and in the target deployment) to cover the other approaches.
+nodes:
+  - id: edge-01
+    position: [0, 100]
+    heading_deg: 0
+    fov_deg: 100
+    range_m: 160
+    thermal: { fov_deg: 55, range_m: 70 }
+  - id: edge-02
+    position: [-150, -100]
+    heading_deg: 225
+    fov_deg: 100
+    range_m: 160
+    thermal: { fov_deg: 55, range_m: 70 }
+  - id: edge-03
+    position: [165, 30]
+    heading_deg: 100
+    fov_deg: 100
+    range_m: 160
+
+readers:
+  - id: gate-south
+    position: [0, -100]
+    range_m: 4
+
+tags:
+  - { id: patrol-alpha, label: "Patrol Alpha (guard phone)", kind: person }
+  - { id: patrol-bravo, label: "Patrol Bravo (guard phone)", kind: person }
+  - { id: qrf-jeep, label: "Quick Reaction Force jeep", kind: vehicle }
+  - { id: crate-07, label: "Munitions crate 07", kind: asset, home_zone: armoury }
+  - { id: badge-0142, label: "Staff badge 0142", kind: person }
+  - { id: badge-0999, label: "Revoked badge 0999", kind: person, authorized: false }
+
+features:
+  roads:
+    public-road-south: [[-340, -180], [-120, -165], [100, -190], [340, -172]]
+  patrol_routes:
+    inner-fence: [[-140, -90], [140, -90], [152, 25], [112, 90], [-140, 90], [-140, -90]]
+    outer-sweep: [[-255, -215], [255, -215], [275, 55], [210, 205], [-255, 205], [-255, -215]]
+  gates:
+    south-gate: [0, -100]
