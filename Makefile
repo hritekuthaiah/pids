@@ -67,7 +67,7 @@ lint: ## Lint Python
 
 .PHONY: typecheck
 typecheck: ## Static type-check Python (mypy --strict)
-	$(UV) mypy packages/core/src
+	$(UV) mypy packages/core/src packages/sim/src ml/src
 
 .PHONY: test
 test: ## Run unit tests
@@ -83,6 +83,16 @@ check: lint typecheck test ## Everything CI runs, locally
 .PHONY: hooks
 hooks: ## Run every pre-commit hook against the whole repo
 	pre-commit run --all-files
+
+##@ Models & evaluation
+
+.PHONY: train
+train: ## Train the anomaly model and refit the decision model (training seeds 0-999)
+	$(UV) pids-train all -n 200
+
+.PHONY: sim
+sim: ## Quick PIDS-vs-baseline comparison on a few simulated scenarios
+	$(UV) pids-sim -n 3
 
 ##@ Help
 

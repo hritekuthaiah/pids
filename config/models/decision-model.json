@@ -1,0 +1,31 @@
+{
+  "fusion": {
+    "source": "fitted",
+    "version": "constrained-n200",
+    "bias": -2.9443,
+    "weights": {
+      "zone_warning": 1.5433,
+      "zone_critical": 2.0576,
+      "class_person": 1.4739,
+      "class_vehicle": 0.0,
+      "class_animal": -2.1109,
+      "persistence": 0.0,
+      "thermal_present": 1.3237,
+      "thermal_absent": 0.0,
+      "anomaly": 0.2401,
+      "imminence": 1.0712,
+      "authorized_tag": -1.3208,
+      "spoof": 0.2521,
+      "corroboration": 1.0775
+    }
+  },
+  "scoring": {
+    "elevated_at": 0.2,
+    "warning_at": 0.3,
+    "critical_at": 0.3,
+    "predicted_breach_horizon_s": 30.0,
+    "floor_min_confidence": 0.45,
+    "floor_min_age_s": 3.0
+  },
+  "notes": "Sign-constrained logistic fit on 212329 labelled assessments from training seeds; held-out AUC 0.793, ECE 0.0358."
+}
