@@ -25,6 +25,7 @@ from pids_core.geofence import ZoneIndex
 
 WINDOW_S = 30.0
 STOP_SPEED = 0.3
+NEAR_FENCE_M = 40.0
 
 
 @dataclass(frozen=True, slots=True)
@@ -49,6 +50,7 @@ class TrackFeatures:
     dist_to_critical_m: float
     approach_rate: float
     boundary_parallel: float
+    near_fence_s: float
     hour_sin: float
     hour_cos: float
 
@@ -126,13 +128,26 @@ def extract(
     d_last = zones.distance_to_kind(ZoneKind.CRITICAL, last)
     approach = (d_first - d_last) / (t[-1] - t[0]) if math.isfinite(d_last) else 0.0
 
+    # Walking *along* the fence matters only near it (probing for a gap); a car on a
+    # road 70 m out also moves parallel to the fence and is perfectly ordinary.
     parallel = 0.0
     critical = zones.of_kind(ZoneKind.CRITICAL)
-    if critical and displacement > 0.5:
+    if critical and displacement > 0.5 and math.isfinite(d_last):
         nearest = min(critical, key=lambda z: abs(zones.signed_distance(z.id, last)))
         tx, ty = zones.boundary_tangent(nearest.id, last)
         ux, uy = (e[-1] - e[0]) / displacement, (n[-1] - n[0]) / displacement
-        parallel = abs(tx * ux + ty * uy)
+        parallel = abs(tx * ux + ty * uy) * math.exp(-max(d_last, 0.0) / NEAR_FENCE_M)
+
+    near = 0.0
+    if critical:
+        dists = np.array(
+            [
+                zones.distance_to_kind(ZoneKind.CRITICAL, Enu(a, b))
+                for a, b in zip(e, n, strict=True)
+            ]
+        )
+        outside_near = (dists > 0) & (dists < NEAR_FENCE_M)
+        near = float(np.sum(np.where(outside_near[:-1], dt, 0.0)))
 
     angle = 2.0 * math.pi * (local_hour % 24.0) / 24.0
     return TrackFeatures(
@@ -146,6 +161,7 @@ def extract(
         dist_to_critical_m=float(np.clip(d_last, -500.0, 2000.0)),
         approach_rate=float(np.clip(approach, -30.0, 30.0)),
         boundary_parallel=parallel,
+        near_fence_s=near,
         hour_sin=math.sin(angle),
         hour_cos=math.cos(angle),
     )

@@ -16,7 +16,7 @@ INTRUDER = Evidence(
     zone_kind=ZoneKind.WARNING,
     entity_class=EntityClass.PERSON,
     class_confidence=0.85,
-    hits=20,
+    track_age_s=10.0,
     thermal_confirmed=True,
     anomaly_score=0.7,
     time_to_breach_s=20.0,
@@ -108,13 +108,13 @@ def test_weights_must_cover_every_term() -> None:
 @given(
     conf=st.floats(0, 1),
     anomaly=st.one_of(st.none(), st.floats(0, 1)),
-    hits=st.integers(1, 100),
+    age=st.floats(0, 100),
     zone=st.sampled_from([None, ZoneKind.WARNING, ZoneKind.CRITICAL]),
 )
 def test_monotonic_in_thermal_and_tag(
-    conf: float, anomaly: float | None, hits: int, zone: ZoneKind | None
+    conf: float, anomaly: float | None, age: float, zone: ZoneKind | None
 ) -> None:
-    base = Evidence(zone, EntityClass.PERSON, conf, hits, None, anomaly, None, False, 0.0)
+    base = Evidence(zone, EntityClass.PERSON, conf, age, None, anomaly, None, False, 0.0)
     assert p(dataclasses.replace(base, thermal_confirmed=True)) >= p(base)
     assert p(dataclasses.replace(base, authorized_tag=True)) <= p(base)
     assert 0.0 <= p(base) <= 1.0
@@ -131,7 +131,7 @@ def inp(**kw: object) -> ScoreInput:
         "zone_kind": ZoneKind.WARNING,
         "entity_class": EntityClass.PERSON,
         "class_confidence": 0.85,
-        "hits": 20,
+        "track_age_s": 10.0,
         "authorized": False,
         "spoof_suspicion": 0.0,
         "time_to_breach_s": None,
@@ -170,7 +170,7 @@ def test_recall_floor_keeps_breach_at_warning() -> None:
     [
         {"authorized": True},
         {"entity_class": EntityClass.ANIMAL},
-        {"hits": 2},
+        {"track_age_s": 2.0},
         {"class_confidence": 0.2},
     ],
 )

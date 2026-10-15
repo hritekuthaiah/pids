@@ -107,7 +107,7 @@ class SpoofMonitor:
         self._decay(now)
         if in_view and not corroborated:
             self._unseen_in_view_s += dt
-            if self._unseen_in_view_s > 5.0:
+            if self._unseen_in_view_s > 8.0:
                 self._raise(0.04 * dt, "camera sees nobody at the tag's position")
         else:
             self._unseen_in_view_s = 0.0
