@@ -83,7 +83,12 @@ services:
     profiles: [app]
     image: pids/server:dev
     build: { context: ., dockerfile: apps/server/Dockerfile }
-    command: ["alembic", "-c", "apps/server/alembic.ini", "upgrade", "head"]
+    # schema migrations, then an idempotent seed of the site (and of the demo
+    # accounts whose SEED_* passwords are present in .env)
+    command:
+      - sh
+      - -c
+      - alembic -c apps/server/alembic.ini upgrade head && pids-admin seed --site "$${PIDS_SITE_CONFIG:-config/sites/site-alpha.yaml}"
     env_file: .env
     environment: &app-env
       POSTGRES_HOST: db

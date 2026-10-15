@@ -235,11 +235,14 @@ async def amain() -> None:
     settings = get_settings()
     configure(settings.log_level, json=settings.env == "prod")
     db = Database(settings.database_url)
-    async with db.session() as session:
-        ids = await site_ids(session)
-        if not ids:
-            raise SystemExit("no site seeded — run `make seed`")
-        cfg = await load_site_config(session, ids[0])
+    while True:
+        async with db.session() as session:
+            ids = await site_ids(session)
+            if ids:
+                cfg = await load_site_config(session, ids[0])
+                break
+        log.warning("no site seeded yet; waiting (run `make seed`)")
+        await asyncio.sleep(5)
     await db.dispose()
     model = DecisionModel.load(settings.decision_model)
     start_http_server(settings.metrics_port_decision)
