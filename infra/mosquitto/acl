@@ -7,6 +7,16 @@ user pids-server
 topic read pids/#
 topic read $SYS/#
 topic write pids/+/+/cmd/#
+# guard-phone GPS fixes arrive over HTTPS and are republished as node "api"
+topic write pids/+/api/gps
+
+# Development-only simulator: plays every edge node of a site. Never provision
+# this user in a real deployment.
+user pids-sim
+topic write pids/+/+/tracks
+topic write pids/+/+/gps
+topic write pids/+/+/sensors
+topic write pids/+/+/health
 
 # Edge nodes authenticate with their node id as username (%u) and may only
 # publish their own telemetry and read their own commands.
