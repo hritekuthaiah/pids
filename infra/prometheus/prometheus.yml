@@ -1,0 +1,15 @@
+# Scrapes the PIDS processes inside the compose network (make obs).
+global:
+  scrape_interval: 5s
+  evaluation_interval: 5s
+
+scrape_configs:
+  - job_name: pids-api
+    metrics_path: /metrics
+    static_configs: [{ targets: ["api:8000"] }]
+  - job_name: pids-decision
+    static_configs: [{ targets: ["decision:9101"] }]
+  - job_name: pids-worker
+    static_configs: [{ targets: ["worker:9102"] }]
+  - job_name: prometheus
+    static_configs: [{ targets: ["localhost:9090"] }]

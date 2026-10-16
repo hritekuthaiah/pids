@@ -17,6 +17,7 @@ from redis.asyncio import Redis
 from sqlalchemy import text
 
 from pids_server import __version__
+from pids_server import metrics as prom
 from pids_server.api.routes import agent, alerts, auth, devices, sites
 from pids_server.api.ws import Hub
 from pids_server.api.ws import router as ws_router
@@ -76,6 +77,14 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             response = await call_next(request)
         finally:
             structlog.contextvars.clear_contextvars()
+        route = request.scope.get("route")
+        template = getattr(
+            route, "path", "unmatched"
+        )  # "/api/v1/alerts/{alert_id}/..." not raw ids
+        if template != "/metrics":
+            prom.HTTP_SECONDS.labels(request.method, template, str(response.status_code)).observe(
+                time.perf_counter() - started
+            )
         response.headers["x-request-id"] = request_id
         response.headers["x-content-type-options"] = "nosniff"
         response.headers["referrer-policy"] = "no-referrer"
