@@ -15,6 +15,7 @@ from pids_core.site import SiteConfig
 from pids_server import bus
 from pids_server.api.deps import Admin, AnyUser, RedisDep, SessionDep, audit
 from pids_server.db import models as m
+from pids_server.schemas import LiveMessage
 from pids_server.site_store import load_site_config
 
 router = APIRouter(prefix="/sites", tags=["sites"])
@@ -133,7 +134,14 @@ async def get_site(site_id: str, _: AnyUser, session: SessionDep) -> dict[str, A
     }
 
 
-@router.get("/{site_id}/live")
+@router.get(
+    "/{site_id}/live",
+    response_class=Response,
+    responses={
+        200: {"model": LiveMessage, "description": "Latest live snapshot (also pushed over /ws)"},
+        204: {"description": "No snapshot yet"},
+    },
+)
 async def live(site_id: str, _: AnyUser, redis: RedisDep) -> Response:
     raw = await redis.get(bus.live_key(site_id))
     if raw is None:

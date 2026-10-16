@@ -14,7 +14,9 @@ from pids_server.db import models as m
 
 
 class Out(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(
+        from_attributes=True, json_schema_serialization_defaults_required=True
+    )
 
 
 class AlertEventOut(Out):
@@ -84,17 +86,24 @@ class AlertDetailOut(AlertOut):
     events: list[AlertEventOut] = Field(default_factory=list)
 
 
-class LiveMessage(BaseModel):
+class LiveMessage(Out):
     type: Literal["live"] = "live"
     site_id: str
     at: datetime
     entities: list[ThreatAssessment]
 
 
-class AlertMessage(BaseModel):
+class AlertMessage(Out):
     type: Literal["alert"] = "alert"
     event: str
     alert: AlertOut
+
+
+class AlertsSnapshotMessage(Out):
+    """Sent once on WebSocket connect: every open or acknowledged alert."""
+
+    type: Literal["alerts_snapshot"] = "alerts_snapshot"
+    alerts: list[AlertOut]
 
 
 class Envelope(BaseModel):
