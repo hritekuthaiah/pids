@@ -51,6 +51,11 @@ up-lan: ## Like up-all, but the API listens on the LAN for guard phones (demo ne
 	API_BIND=0.0.0.0 $(COMPOSE) --profile app up -d --build --wait
 	@echo "guard app server address: $$(ipconfig getifaddr en0 2>/dev/null || hostname -I | cut -d' ' -f1):$${API_PORT:-8000}"
 
+.PHONY: obs
+obs: ## Prometheus + Grafana (dashboard "PIDS — operations" on http://localhost:3000, admin / GRAFANA_ADMIN_PASSWORD)
+	@grep -qE '^GRAFANA_ADMIN_PASSWORD=.+' .env || { echo "GRAFANA_ADMIN_PASSWORD missing in .env — run: make env-sync"; exit 1; }
+	$(COMPOSE) --profile app --profile obs up -d --wait
+
 .PHONY: dev-api
 dev-api: ## Run the API natively with reload-free uvicorn (uses .env)
 	set -a && . ./.env && set +a && $(UV) pids-api
@@ -69,7 +74,7 @@ sim-live: ## Stream simulated scenarios to MQTT in real time (loops): make sim-l
 
 .PHONY: down
 down: ## Stop the stack (keeps data volumes)
-	$(COMPOSE) --profile app down
+	$(COMPOSE) --profile app --profile obs down
 
 .PHONY: ps
 ps: ## Show stack status

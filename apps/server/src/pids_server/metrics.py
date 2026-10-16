@@ -20,6 +20,12 @@ STEP_SECONDS = Histogram(
 MESSAGES = Counter("pids_messages_total", "Telemetry messages consumed", ["stream", "result"])
 ALERT_EVENTS = Counter("pids_alert_events_total", "Alert state-machine events", ["kind", "level"])
 ENTITIES = Gauge("pids_entities_assessed", "Entities assessed in the last step", ["site"])
+HTTP_SECONDS = Histogram(
+    "pids_http_request_seconds",
+    "API request duration by route template (bounded cardinality)",
+    ["method", "route", "status"],
+    buckets=_LATENCY_BUCKETS,
+)
 NOTIFICATIONS = Counter(
     "pids_notifications_total", "Notification dispatches", ["channel", "status"]
 )
