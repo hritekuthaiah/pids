@@ -21,7 +21,7 @@ from sqlalchemy import select
 from pids_server import bus
 from pids_server.db import models as m
 from pids_server.logs import log
-from pids_server.schemas import AlertOut
+from pids_server.schemas import AlertOut, AlertsSnapshotMessage
 
 router = APIRouter()
 
@@ -130,9 +130,7 @@ async def _send_initial(ws: WebSocket, redis: Redis, site_id: str) -> None:
                 .limit(200)
             )
         ).all()
-    await ws.send_bytes(
-        bus.dumps({"type": "alerts_snapshot", "alerts": [AlertOut.of(r) for r in rows]})
-    )
+    await ws.send_bytes(bus.dumps(AlertsSnapshotMessage(alerts=[AlertOut.of(r) for r in rows])))
 
 
 async def _sender(client: _Client) -> None:

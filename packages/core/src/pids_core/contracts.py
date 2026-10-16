@@ -29,7 +29,14 @@ Trace = dict[str, AwareDatetime]
 class Contract(BaseModel):
     """Base for wire models: immutable, unknown fields rejected."""
 
-    model_config = ConfigDict(frozen=True, extra="forbid", use_enum_values=False)
+    model_config = ConfigDict(
+        frozen=True,
+        extra="forbid",
+        use_enum_values=False,
+        # Output schemas mark defaulted fields as always present, so generated client
+        # types don't treat e.g. `flags` as optional.
+        json_schema_serialization_defaults_required=True,
+    )
 
 
 # ---------------------------------------------------------------------------
