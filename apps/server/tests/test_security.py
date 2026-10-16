@@ -70,3 +70,15 @@ def test_token_digest_is_stable_and_not_the_token() -> None:
     assert token_digest("abc") == token_digest("abc")
     assert token_digest("abc") != "abc"
     assert len(token_digest("abc")) == 64
+
+
+def test_blank_env_values_mean_unset(monkeypatch: pytest.MonkeyPatch) -> None:
+    from pids_server.settings import Settings
+
+    for key in ("POSTGRES_PASSWORD", "REDIS_PASSWORD", "MQTT_SERVER_PASSWORD", "JWT_SECRET"):
+        monkeypatch.setenv(key, "test-only-value")
+    monkeypatch.setenv("MQTT_CA_FILE", "")
+    monkeypatch.setenv("OLLAMA_BASE_URL", "  ")
+    s = Settings(_env_file=None)  # type: ignore[call-arg]
+    assert s.mqtt_ca_file is None
+    assert s.ollama_base_url is None
