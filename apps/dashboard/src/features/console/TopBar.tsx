@@ -40,7 +40,8 @@ export function TopBar({ siteName, timezone }: { siteName: string; timezone: str
 
   // Only the site name gives way when space runs short (it truncates; the tooltip has
   // it in full), so no control ever wraps. Below 2xl the gaps tighten and the UTC
-  // clock and posture caption drop out: that is what fits a 1280 px projector.
+  // clock, the then-redundant LOCAL label and the posture caption drop out: that is
+  // what fits a 1280 px projector without clipping the "Control room" caption.
   return (
     <header className="hud flex h-14 shrink-0 items-center gap-4 px-4 2xl:gap-6">
       <div className="flex min-w-0 items-baseline gap-3">
@@ -100,8 +101,8 @@ export function TopBar({ siteName, timezone }: { siteName: string; timezone: str
 
       <div className="ml-auto flex shrink-0 items-center gap-4 whitespace-nowrap 2xl:gap-5">
         <div className="flex gap-4 font-mono text-[13px]">
-          <span>
-            <span className="mr-1.5 text-[9px] text-fg-dim">LOCAL</span>
+          <span title={timezone}>
+            <span className="mr-1.5 hidden text-[9px] text-fg-dim 2xl:inline">LOCAL</span>
             {clock(new Date(now), timezone)}
           </span>
           <span className="hidden text-fg-muted 2xl:inline">
