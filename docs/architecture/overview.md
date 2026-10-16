@@ -56,7 +56,7 @@ MQTT topics (`infra/mosquitto/acl` enforces who may publish what):
 | `pids/{site}/{node}/tracks` | edge | `TrackBatch` — tracks seen in one perception cycle |
 | `pids/{site}/{node}/gps` | edge | `GpsFix` from a tag / GPS module |
 | `pids/{site}/{node}/sensors` | edge | thermal presence, tag reads |
-| `pids/{site}/{node}/health` | edge | heartbeat, FPS, queue depth |
+| `pids/{site}/{node}/health` | edge | `NodeHealth` — retained; FPS, inference time, tracks; `offline` last will |
 | `pids/{site}/{node}/cmd/{name}` | server | commands to a node (e.g. siren) |
 
 Inside the platform, the decision engine publishes assessments and alerts to Redis;
