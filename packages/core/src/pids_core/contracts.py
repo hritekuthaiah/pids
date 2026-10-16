@@ -189,6 +189,32 @@ class TagRead(Contract):
     trace: Trace = Field(default_factory=dict)
 
 
+class NodeStatus(StrEnum):
+    ONLINE = "online"
+    OFFLINE = "offline"
+
+
+class NodeHealth(Contract):
+    """Periodic liveness and performance report from an edge node (NFR-05, AIL-14).
+
+    Published retained, with an ``offline`` last-will, so a subscriber always knows
+    whether each node is up and how fast it is perceiving.
+    """
+
+    schema_version: Literal[1] = SCHEMA_VERSION
+    site_id: str
+    node_id: str
+    at: AwareDatetime
+    status: NodeStatus
+    fps: NonNegative | None = None
+    inference_ms: NonNegative | None = None
+    tracks: Annotated[int, Field(ge=0)] | None = None
+    dropped_frames: Annotated[int, Field(ge=0)] | None = None
+    uptime_s: NonNegative | None = None
+    model: str | None = None
+    calibration_rms_m: NonNegative | None = None
+
+
 # ---------------------------------------------------------------------------
 # Decision -> clients
 # ---------------------------------------------------------------------------
