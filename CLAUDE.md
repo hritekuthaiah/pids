@@ -36,13 +36,15 @@ rather than silently deviating.
 | `packages/core` (`pids_core`) | Contracts, geofence, Kalman, features, spoofing, fusion, scoring, alert FSM, `DecisionEngine`, naive baselines |
 | `packages/sim` (`pids_sim`) | Labelled scenario simulator; `pids-sim` (offline compare) and `pids-sim live` (real-time MQTT) |
 | `ml` (`pids_ml`) | Isolation Forest behaviour model, constrained fusion calibration, event-level comparison |
-| `apps/server` (`pids_server`) | `pids-api` (FastAPI + WS), `pids-decision` (MQTT → engine), `pids-worker` (notifications), `pids-admin` |
+| `apps/server` (`pids_server`) | `pids-api` (FastAPI + WS), `pids-decision` (MQTT → engine), `pids-worker` (notifications), `pids-admin`; `agent/` = LLM triage, procedure retrieval, log questions (ADR-0007) |
 | `packages/api-client` | Generated TS types (`openapi.json` → `schema.d.ts`) + typed client + live WS helper |
-| `apps/dashboard` | React 19 + MapLibre control-room console |
+| `apps/dashboard` | React 19 + MapLibre control-room console; nginx image (`console` service) in production |
 | `apps/edge` (`pids_edge`) | Camera edge node: YOLO26n (ONNX Runtime) → ByteTrack → floor homography → MQTT, calibration tool, loopback MJPEG preview (ADR-0011) |
-| `apps/guard` | *(M5)* Expo Android guard app |
+| `apps/guard` | Expo SDK 58 Android guard app; `modules/pids-badge` = Kotlin BLE badge advertiser |
 | `config/sites/*.yaml` | Site geometry in local metres (single source of truth): `site-alpha` (simulated depot), `demo-room` (live demo) |
 | `config/edge/` | Per-node edge config, floor marks and calibration |
+| `config/sops/` | Illustrative site procedures indexed for the agent |
+| `infra/` | Postgres image, Mosquitto (+ TLS via `infra/certs`), Prometheus, Grafana |
 
 ## Commands
 
@@ -59,32 +61,38 @@ make train            # behaviour model + decision model (~2 min)
 make edge-model       # export YOLO26n to ONNX (isolated uvx env; PyTorch never enters the workspace)
 make edge             # camera edge node against the stack; preview http://127.0.0.1:8090/stream.mjpg
 PIDS_SITE_CONFIG=config/sites/demo-room.yaml make up-all   # make the demo room the live site
+make demo / demo-reset   # live demo bring-up (LAN, TLS, console :8080) / clean slate between rehearsals
+make eval / edge-eval    # held-out evaluation report / detector accuracy + benchmarks
+make obs / certs / env-sync   # Grafana :3000 / dev CA for MQTT TLS / add new .env.example keys
+make gps-probe           # identify a plugged-in GPS module
 ```
 
 Demo logins are the `SEED_*` passwords in `.env` (never print them).
 
 ## Current state (16 Oct 2026)
 
-- **Merged:** M0 foundation, M1 decision core + simulator + calibrated fusion
-  (held-out: Pd 98.6 %, −82 % nuisance alarms vs naive line-crossing), M2 server
-  platform, M3 dashboard, M4 camera pipeline (YOLO26n ~17 ms/frame on the laptop CPU,
-  capture -> decision ~170 ms). Open: rest of M4 (GPS NMEA driver, BLE badge scanner,
-  per-class detector eval #22, benchmarks #26), M5 guard app, M6 evaluation, M7 agent
-  layer, M8 demo hardening.
-- **Hardware in hand:** USB camera (plus the MacBook's built-in one), a GPS module (model
-  and adapter still to be identified), Android phone(s). No Pi, thermal or RFID.
-- **Whitelist decision (16 Oct):** *phones act as BLE badges* — authorised people's
-  phones broadcast passively; scanners (the Mac's Bluetooth to start) hear them; identity
-  is linked to camera tracks by position and RSSI-vs-motion correlation, with rolling IDs
-  against replay. No purchase for now; ESP32 badges are the upgrade path. Implemented
-  per ADR-0012 (`pids_core.badges`, edge `ble.py`); phones advertise once the guard app
-  ships. RFID tap-reads stay supported in code but are **not** used in
-  the demo (tapping is not autonomous).
-- **Demo plan:** live, not simulated — a room as the compound (camera high in a corner,
-  floor tape for ground-plane calibration, zones taped on the floor), a badged teammate
-  and an un-badged "intruder" walking in together, alerts to the guard phone, a naive
-  baseline panel side by side; plus a short live outdoor GPS segment. Simulator and
-  evaluation numbers are presented as evaluation, not as the live demo.
+- **v1.0: all milestones M0–M8 merged.**
+  - Decision core: held-out Pd 99.3% (139/140), 82% fewer nuisance alarms than
+    naive line-crossing.
+  - Camera edge node: YOLO26n ONNX, 20 ms/frame on the laptop CPU, lossless vs PyTorch.
+  - GPS NMEA driver; passive BLE phone badges (ADR-0012).
+  - Guard app.
+  - Evaluation harness with ablations.
+  - Agent layer (Claude Opus 5.5, Ollama fallback).
+  - Observability.
+  - MQTT TLS.
+  - Demo kit.
+- **Still needs a human:**
+  - paste `ANTHROPIC_API_KEY` into `.env`
+  - install the guard APK on phones (USB debugging)
+  - Firebase/EAS accounts if remote push is wanted
+  - measure the demo room and calibrate the camera on site
+  - identify the GPS module (`make gps-probe`)
+  - grant macOS camera and Bluetooth permission to the terminal
+- **Demo plan:** [docs/demo/script.md](docs/demo/script.md). It is live, not
+  simulated: a room as the compound, a badged teammate plus an intruder, alerts to
+  the guard phone, the agent's triage, and the naive-baseline counter beside it.
+- **Open stretch work:** #34 LSTM trajectories, #35 adaptive zones, #36 hosted demo.
 
 ## Conventions
 
@@ -119,3 +127,19 @@ Demo logins are the `SEED_*` passwords in `.env` (never print them).
   outdoor scale; check them at room scale before the demo.
 - In non-interactive shells pnpm is not on PATH: use `mise exec -- pnpm ...`.
 - The dashboard alarm is audible in the browser pane — silence it when testing.
+- Pre-commit stashes *unstaged tracked* changes but leaves *untracked* files, so
+  hooks can see half a change: commit a whole feature at once, or park untracked
+  work outside the tree. A fresh git worktree needs `uv sync --all-packages` before
+  hooks (mypy) run.
+- pydantic turns `KEY=` into `Path('.')`; blank env values must map to `None`
+  (`_blank_is_unset` in settings).
+- nginx: a location-level `add_header` silently drops the server-level security
+  headers; use `expires` for caching instead.
+- aiomqtt leaks the socket on a refused TLS handshake (a ResourceWarning, and warnings
+  are errors in tests); test negative TLS cases with `ssl` directly.
+- The Expo template adds its own MIT `LICENSE` and `.claude/settings.json`; neither
+  belongs here.
+- Ultralytics `check_det_dataset("coco.yaml")` downloads all of COCO (18 GB);
+  `make edge-eval` fetches only val2017.
+- Benchmark latency on an idle machine (`--latency-only`); background builds
+  inflate it 3-4×.
