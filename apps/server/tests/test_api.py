@@ -141,6 +141,31 @@ async def test_the_live_site_is_listed_first(
     assert ids[0] == live  # the console opens on the site with a decision service
 
 
+async def test_a_guard_gets_only_their_own_badge_secret(
+    client: AsyncClient, settings: Settings
+) -> None:
+    from pids_core.badges import BadgeResolver, rolling_id, window_of
+
+    if settings.badge_key is None:
+        pytest.skip("PIDS_BADGE_KEY not configured")
+    guard = await login(client, "guard@test.local")
+    r = await client.get("/api/v1/guards/me/badge", headers=bearer(guard))
+    assert r.status_code == 200
+    body = r.json()
+    assert body["tag_id"] == "patrol-alpha"
+    assert body["window_s"] == 30
+    # what the phone would advertise resolves, on the scanner side, to this guard's tag
+    raw = settings.badge_key.get_secret_value()
+    key = bytes.fromhex(raw)
+    now = datetime.now(UTC).timestamp()
+    rid = rolling_id(bytes.fromhex(body["secret_hex"]), window_of(now))
+    assert (
+        BadgeResolver(key, ["patrol-alpha", "patrol-bravo"]).resolve(1, rid, now) == "patrol-alpha"
+    )
+    op = await login(client, "operator@test.local")
+    assert (await client.get("/api/v1/guards/me/badge", headers=bearer(op))).status_code == 403
+
+
 async def test_only_admin_can_revoke_tags(client: AsyncClient) -> None:
     op = await login(client, "operator@test.local")
     r = await client.patch(

@@ -30,3 +30,7 @@ sensors:
   # No thermal array on the demo laptop; mlx90640 on a Pi with the sensor fitted.
   thermal:
     driver: none
+  # The laptop's Bluetooth as a passive badge reader (team phones, ADR-0012).
+  ble:
+    driver: bleak
+    reader_id: edge-01-ble

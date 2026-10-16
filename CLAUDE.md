@@ -76,8 +76,9 @@ Demo logins are the `SEED_*` passwords in `.env` (never print them).
 - **Whitelist decision (16 Oct):** *phones act as BLE badges* — authorised people's
   phones broadcast passively; scanners (the Mac's Bluetooth to start) hear them; identity
   is linked to camera tracks by position and RSSI-vs-motion correlation, with rolling IDs
-  against replay. No purchase for now; ESP32 badges are the upgrade path. Write ADR-0012
-  with the implementation. RFID tap-reads stay supported in code but are **not** used in
+  against replay. No purchase for now; ESP32 badges are the upgrade path. Implemented
+  per ADR-0012 (`pids_core.badges`, edge `ble.py`); phones advertise once the guard app
+  ships. RFID tap-reads stay supported in code but are **not** used in
   the demo (tapping is not autonomous).
 - **Demo plan:** live, not simulated — a room as the compound (camera high in a corner,
   floor tape for ground-plane calibration, zones taped on the floor), a badged teammate

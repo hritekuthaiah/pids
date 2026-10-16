@@ -90,9 +90,20 @@ class ThermalSensorConfig(_Config):
     )
 
 
+class BleConfig(_Config):
+    """The node's Bluetooth radio as a passive badge reader (ADR-0012)."""
+
+    driver: Literal["none", "bleak"] = "none"
+    reader_id: str | None = Field(default=None, description="a `kind: ble` reader in the site file")
+    allow_static: bool = Field(
+        default=False, description="accept fixed (replayable) ids — bench testing only"
+    )
+
+
 class SensorsConfig(_Config):
     gps: GpsConfig = Field(default_factory=GpsConfig)
     thermal: ThermalSensorConfig = Field(default_factory=ThermalSensorConfig)
+    ble: BleConfig = Field(default_factory=BleConfig)
 
 
 class EdgeConfig(_Config):
@@ -105,6 +116,12 @@ class EdgeConfig(_Config):
     publish: PublishConfig = Field(default_factory=PublishConfig)
     preview: PreviewConfig = Field(default_factory=PreviewConfig)
     sensors: SensorsConfig = Field(default_factory=SensorsConfig)
+
+    @model_validator(mode="after")
+    def _ble_needs_a_reader(self) -> EdgeConfig:
+        if self.sensors.ble.driver != "none" and not self.sensors.ble.reader_id:
+            raise ValueError("sensors.ble.reader_id is required when a BLE driver is enabled")
+        return self
 
     @model_validator(mode="after")
     def _gps_needs_a_tag(self) -> EdgeConfig:
