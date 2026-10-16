@@ -1,0 +1,11 @@
+# Surveyed floor marks for calibrating edge-01 (site metres, see demo-room.yaml).
+# Put ArUco marker <marker> (from `pids-edge markers`) or a tape cross at each.
+# Spread them over the whole visible floor, near and far: six or more lets the
+# solver reject one bad mark on its own.
+points:
+  - { name: A, world: [2.5, 1.0], marker: 0 }
+  - { name: B, world: [4.0, 1.0], marker: 1 }
+  - { name: C, world: [7.0, 1.0], marker: 2 }
+  - { name: D, world: [7.0, 4.5], marker: 3 }
+  - { name: E, world: [4.0, 4.5], marker: 4 }
+  - { name: F, world: [2.0, 3.0], marker: 5 }

@@ -58,3 +58,6 @@ ml/reports/out/
 !.vscode/extensions.json
 !.vscode/settings.json
 *.swp
+
+# --- edge node ----------------------------------------------------------------
+/markers/

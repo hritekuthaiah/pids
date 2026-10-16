@@ -1,0 +1,216 @@
+"""``pids-edge`` — run and calibrate a camera edge node.
+
+    pids-edge cameras                         list camera indices that open
+    pids-edge run --config config/edge/edge-01.yaml
+    pids-edge calibrate --config ... --marks config/edge/edge-01.marks.yaml [--mode click]
+    pids-edge calibrate-pose --config ... --height 2.4 --pitch 30 --hfov 70
+    pids-edge markers --out markers/ --ids 0-5
+
+MQTT credentials come from the environment (``MQTT_HOST``, ``MQTT_PORT``,
+``MQTT_EDGE_USER``, ``MQTT_EDGE_PASSWORD``); ``make edge`` loads them from ``.env``.
+"""
+
+from __future__ import annotations
+
+import argparse
+import logging
+import os
+import sys
+from pathlib import Path
+
+from pids_core.contracts import NodeHealth, NodeStatus
+from pids_core.site import Site
+
+log = logging.getLogger("pids_edge")
+
+_DEFAULT_CONFIG = Path("config/edge/edge-01.yaml")
+
+
+def cmd_cameras(_: argparse.Namespace) -> int:
+    from pids_edge.camera import probe
+
+    found = probe()
+    if not found:
+        log.error("no camera opened — check it is plugged in and this terminal may use the camera")
+        return 1
+    for index, w, h in found:
+        log.info("camera %d: %dx%d", index, w, h)
+    return 0
+
+
+def cmd_run(args: argparse.Namespace) -> int:
+    from datetime import UTC, datetime
+
+    from pids_edge.camera import open_source
+    from pids_edge.config import CameraConfig, EdgeConfig
+    from pids_edge.detector import YoloDetector
+    from pids_edge.ground import Calibration, GroundPlane
+    from pids_edge.pipeline import EdgeNode, run
+    from pids_edge.preview import PreviewServer
+    from pids_edge.publish import MqttPublisher, Outbox
+
+    cfg = EdgeConfig.from_yaml(args.config)
+    site = Site.from_yaml(cfg.site)
+    if args.source is not None:
+        src: int | str = int(args.source) if args.source.isdigit() else args.source
+        cfg = cfg.model_copy(
+            update={"camera": CameraConfig(**{**cfg.camera.model_dump(), "source": src})}
+        )
+    detector = YoloDetector(
+        cfg.detector.model,
+        score_threshold=cfg.detector.score_threshold,
+        iou_threshold=cfg.detector.iou_threshold,
+        threads=cfg.detector.threads,
+    )
+    source = open_source(cfg.camera)
+    first = source.read(timeout_s=10.0)
+    if first is None:
+        log.error("camera produced no frames")
+        return 1
+    ground = GroundPlane(Calibration.load(cfg.ground.calibration), first.size)
+    node = EdgeNode(cfg, site, detector, ground)
+
+    publisher: MqttPublisher | None = None
+    if not args.offline:
+        user = os.environ.get("MQTT_EDGE_USER", cfg.node_id)
+        if user != cfg.node_id:
+            log.warning(
+                "MQTT_EDGE_USER=%s but node is %s: the broker ACL will refuse it", user, cfg.node_id
+            )
+        password = os.environ.get("MQTT_EDGE_PASSWORD")
+        if not password:
+            log.error("MQTT_EDGE_PASSWORD is not set (use `make edge`, or --offline)")
+            return 2
+        health_topic = f"pids/{site.id}/{cfg.node_id}/health"
+        will = (
+            NodeHealth(
+                site_id=site.id,
+                node_id=cfg.node_id,
+                at=datetime.now(UTC),
+                status=NodeStatus.OFFLINE,
+            )
+            .model_dump_json()
+            .encode()
+        )
+        publisher = MqttPublisher(
+            host=os.environ.get("MQTT_HOST", "localhost"),
+            port=int(os.environ.get("MQTT_PORT", "1883")),
+            username=user,
+            password=password,
+            client_id=f"pids-edge-{cfg.node_id}",
+            outbox=Outbox(cfg.publish.buffer_limit, cfg.publish.replay_window_s),
+            will=(health_topic, will),
+        )
+        publisher.start()
+
+    preview: PreviewServer | None = None
+    if cfg.preview.enabled and not args.no_preview:
+        preview = PreviewServer(cfg.preview.host, cfg.preview.port, cfg.preview.jpeg_quality)
+        preview.start()
+    run(node, source, publisher, preview, model_name=cfg.detector.model.stem)
+    return 0
+
+
+def cmd_calibrate(args: argparse.Namespace) -> int:
+    from pids_edge.calibrate import FloorMarks, interactive
+    from pids_edge.config import EdgeConfig
+
+    cfg = EdgeConfig.from_yaml(args.config)
+    site = Site.from_yaml(cfg.site)
+    calib = interactive(cfg, site, FloorMarks.load(args.marks), args.mode)
+    if calib is None:
+        log.info("calibration abandoned; nothing written")
+        return 1
+    out = args.out or cfg.ground.calibration
+    calib.save(out)
+    log.info(
+        "saved %s (%s, RMS %.3f m over %d marks)",
+        out,
+        calib.method,
+        calib.rms_error_m,
+        len(calib.points),
+    )
+    return 0
+
+
+def cmd_calibrate_pose(args: argparse.Namespace) -> int:
+    from pids_edge.calibrate import pose_calibration
+    from pids_edge.config import EdgeConfig
+
+    cfg = EdgeConfig.from_yaml(args.config)
+    site = Site.from_yaml(cfg.site)
+    node = next(n for n in site.config.nodes if n.id == cfg.node_id)
+    calib = pose_calibration(
+        cfg.node_id,
+        (cfg.camera.width, cfg.camera.height),
+        position=node.position,
+        heading_deg=node.heading_deg if args.heading is None else args.heading,
+        height_m=args.height,
+        pitch_deg=args.pitch,
+        hfov_deg=args.hfov,
+    )
+    out = args.out or cfg.ground.calibration
+    calib.save(out)
+    log.info(
+        "saved %s (pose estimate, assumed error %.2f m) — refine with markers",
+        out,
+        calib.rms_error_m,
+    )
+    return 0
+
+
+def cmd_markers(args: argparse.Namespace) -> int:
+    from pids_edge.calibrate import write_markers
+
+    lo, _, hi = args.ids.partition("-")
+    ids = list(range(int(lo), int(hi or lo) + 1))
+    for path in write_markers(args.out, ids):
+        log.info("wrote %s", path)
+    return 0
+
+
+def main(argv: list[str] | None = None) -> int:
+    logging.basicConfig(
+        level=logging.INFO, format="%(asctime)s %(levelname)-7s %(name)s: %(message)s"
+    )
+    ap = argparse.ArgumentParser(
+        prog="pids-edge", description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+    )
+    sub = ap.add_subparsers(dest="command", required=True)
+
+    sub.add_parser("cameras", help="list camera indices that open").set_defaults(fn=cmd_cameras)
+
+    p = sub.add_parser("run", help="run the edge node")
+    p.add_argument("--config", type=Path, default=_DEFAULT_CONFIG)
+    p.add_argument("--source", help="override camera: device index or video file")
+    p.add_argument("--offline", action="store_true", help="do not connect to MQTT")
+    p.add_argument("--no-preview", action="store_true")
+    p.set_defaults(fn=cmd_run)
+
+    p = sub.add_parser("calibrate", help="floor homography from markers or clicked tape marks")
+    p.add_argument("--config", type=Path, default=_DEFAULT_CONFIG)
+    p.add_argument("--marks", type=Path, required=True, help="floor marks file (site metres)")
+    p.add_argument("--mode", choices=["markers", "click"], default="markers")
+    p.add_argument("--out", type=Path)
+    p.set_defaults(fn=cmd_calibrate)
+
+    p = sub.add_parser("calibrate-pose", help="rough homography from the camera's mounting")
+    p.add_argument("--config", type=Path, default=_DEFAULT_CONFIG)
+    p.add_argument("--height", type=float, required=True, help="lens height above floor, m")
+    p.add_argument("--pitch", type=float, required=True, help="downward tilt from level, degrees")
+    p.add_argument("--hfov", type=float, default=70.0, help="horizontal field of view, degrees")
+    p.add_argument("--heading", type=float, help="compass heading (default: site node heading)")
+    p.add_argument("--out", type=Path)
+    p.set_defaults(fn=cmd_calibrate_pose)
+
+    p = sub.add_parser("markers", help="write printable ArUco floor markers")
+    p.add_argument("--out", type=Path, default=Path("markers"))
+    p.add_argument("--ids", default="0-5", help="e.g. 0-5")
+    p.set_defaults(fn=cmd_markers)
+
+    args = ap.parse_args(sys.argv[1:] if argv is None else argv)
+    return int(args.fn(args))
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
