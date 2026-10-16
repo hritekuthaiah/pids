@@ -7,6 +7,8 @@ for notification jobs, and a key holding the latest live snapshot per site.
 
 from __future__ import annotations
 
+import ssl
+from pathlib import Path
 from typing import Any
 
 import aiomqtt
@@ -76,16 +78,18 @@ def loads(raw: bytes | str) -> Any:
 def mqtt_client(settings: Settings, identifier: str) -> aiomqtt.Client:
     """The server's broker connection; TLS with the broker certificate verified when a CA
     is configured (MQTT_CA_FILE), as off-host links must be (NFR-03)."""
-    tls = (
-        aiomqtt.TLSParameters(ca_certs=str(settings.mqtt_ca_file))
-        if settings.mqtt_ca_file
-        else None
-    )
     return aiomqtt.Client(
         hostname=settings.mqtt_host,
         port=settings.mqtt_port,
         username=settings.mqtt_server_user,
         password=settings.mqtt_server_password.get_secret_value(),
         identifier=identifier,
-        tls_params=tls,
+        tls_context=tls_context(settings.mqtt_ca_file) if settings.mqtt_ca_file else None,
     )
+
+
+def tls_context(ca_file: Path) -> ssl.SSLContext:
+    """Verify the broker's chain and hostname against our CA; TLS 1.2 or newer only."""
+    ctx = ssl.create_default_context(cafile=str(ca_file))
+    ctx.minimum_version = ssl.TLSVersion.TLSv1_2
+    return ctx
