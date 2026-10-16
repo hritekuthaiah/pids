@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { alert, assessment } from "../test/fixtures";
-import { TRAIL_POINTS, emptyLive, reduce, sortAlerts, unackedCritical } from "./live";
+import { TRAIL_POINTS, emptyLive, reduce, sortAlerts, unackedCritical, useLive } from "./live";
 
 describe("reduce", () => {
   it("replaces the entity set on each live snapshot and grows trails", () => {
@@ -55,6 +55,38 @@ describe("reduce", () => {
       alert: alert("b", "critical", { status: "false_alarm" }),
     });
     expect(Object.keys(s.alerts)).toEqual(["a"]);
+  });
+});
+
+describe("baseline tally", () => {
+  it("folds every live snapshot into the session tally", () => {
+    let s = reduce(emptyLive, {
+      type: "live",
+      site_id: "s",
+      at: "2026-10-27T04:30:00Z",
+      entities: [assessment({ entity_id: "a", level: "nominal" })],
+    });
+    s = reduce(s, {
+      type: "live",
+      site_id: "s",
+      at: "2026-10-27T04:30:01Z",
+      entities: [assessment({ entity_id: "b", level: "critical" })],
+    });
+    expect(Object.keys(s.tally.naive).sort()).toEqual(["a", "b"]);
+    expect(Object.keys(s.tally.pids)).toEqual(["b"]);
+    expect(s.tally.startedAt).toBe("2026-10-27T04:30:00Z");
+  });
+
+  it("is cleared by resetTally and by a full reset", () => {
+    const live = useLive.getState();
+    live.apply({ type: "live", site_id: "s", at: "t", entities: [assessment()] });
+    expect(Object.keys(useLive.getState().tally.naive)).toHaveLength(1);
+    live.resetTally();
+    expect(useLive.getState().tally).toEqual(emptyLive.tally);
+    expect(Object.keys(useLive.getState().entities)).toHaveLength(1);
+    live.apply({ type: "live", site_id: "s", at: "t", entities: [assessment()] });
+    live.reset();
+    expect(useLive.getState().tally).toEqual(emptyLive.tally);
   });
 });
 
