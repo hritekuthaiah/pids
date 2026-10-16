@@ -94,6 +94,8 @@ services:
       POSTGRES_HOST: db
       REDIS_HOST: redis
       MQTT_HOST: mqtt
+      # the live site; override per run: PIDS_SITE_CONFIG=config/sites/demo-room.yaml make up-all
+      PIDS_SITE_CONFIG: ${PIDS_SITE_CONFIG:-config/sites/site-alpha.yaml}
     depends_on:
       db: { condition: service_healthy }
 

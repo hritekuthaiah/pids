@@ -8,6 +8,8 @@ spatial queries, tags for administration (revocation takes effect immediately).
 
 from __future__ import annotations
 
+from functools import cache
+from pathlib import Path
 from typing import Any
 
 from geoalchemy2.shape import from_shape
@@ -104,3 +106,15 @@ async def load_site_config(session: AsyncSession, site_id: str) -> SiteConfig:
 
 async def site_ids(session: AsyncSession) -> list[str]:
     return list((await session.scalars(select(m.Site.id))).all())
+
+
+@cache
+def active_site_id(site_file: Path) -> str | None:
+    """The site this deployment runs live: the one ``PIDS_SITE_CONFIG`` names.
+
+    Other seeded sites stay browsable, but only this one has a decision service.
+    """
+    try:
+        return SiteConfig.from_yaml(site_file).site.id
+    except FileNotFoundError:
+        return None
