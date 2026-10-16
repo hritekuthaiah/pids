@@ -72,14 +72,16 @@ def _publisher(cfg: EdgeConfig, site: Site) -> MqttPublisher:
     will = NodeHealth(
         site_id=site.id, node_id=cfg.node_id, at=datetime.now(UTC), status=NodeStatus.OFFLINE
     )
+    ca = os.environ.get("MQTT_CA_FILE")  # set -> TLS to the broker on 8883, verified
     publisher = MqttPublisher(
         host=os.environ.get("MQTT_HOST", "localhost"),
-        port=int(os.environ.get("MQTT_PORT", "1883")),
+        port=int(os.environ.get("MQTT_PORT", "8883" if ca else "1883")),
         username=user,
         password=password,
         client_id=f"pids-edge-{cfg.node_id}",
         outbox=Outbox(cfg.publish.buffer_limit, cfg.publish.replay_window_s),
         will=(f"pids/{site.id}/{cfg.node_id}/health", will.model_dump_json().encode()),
+        ca_file=Path(ca) if ca else None,
     )
     publisher.start()
     return publisher

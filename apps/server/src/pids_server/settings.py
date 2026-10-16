@@ -30,6 +30,9 @@ class Settings(BaseSettings):
     mqtt_port: int = 1883
     mqtt_server_user: str = "pids-server"
     mqtt_server_password: SecretStr
+    #: CA certificate that signed the broker's TLS certificate; set it to connect over
+    #: TLS (port 8883) with the broker verified. Unset = plain MQTT on the compose network.
+    mqtt_ca_file: Path | None = None
 
     jwt_secret: SecretStr
     access_token_ttl_minutes: int = 15

@@ -121,6 +121,8 @@ jobs:
           enable-cache: true
       - name: Generate throwaway .env
         run: make env
+      - name: Generate throwaway dev CA + broker certificate (MQTT over TLS)
+        run: make certs
       - name: Build images and start the full stack (infra + api, decision, worker)
         run: make up-all
       - name: Verify extensions

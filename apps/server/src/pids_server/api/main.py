@@ -7,7 +7,6 @@ import uuid
 from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import AsyncExitStack, asynccontextmanager
 
-import aiomqtt
 import structlog
 import uvicorn
 from fastapi import FastAPI, Request, Response
@@ -16,7 +15,7 @@ from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 from redis.asyncio import Redis
 from sqlalchemy import text
 
-from pids_server import __version__
+from pids_server import __version__, bus
 from pids_server import metrics as prom
 from pids_server.api.routes import agent, alerts, auth, devices, sites
 from pids_server.api.ws import Hub
@@ -38,13 +37,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         await app.state.hub.start()
         async with AsyncExitStack() as stack:
             app.state.mqtt = await stack.enter_async_context(
-                aiomqtt.Client(
-                    hostname=settings.mqtt_host,
-                    port=settings.mqtt_port,
-                    username=settings.mqtt_server_user,
-                    password=settings.mqtt_server_password.get_secret_value(),
-                    identifier=f"pids-api-{uuid.uuid4().hex[:8]}",
-                )
+                bus.mqtt_client(settings, f"pids-api-{uuid.uuid4().hex[:8]}")
             )
             log.info("api ready", version=__version__)
             yield

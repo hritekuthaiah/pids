@@ -14,7 +14,6 @@ import os
 import signal
 from typing import Any
 
-import aiomqtt
 import httpx
 from prometheus_client import start_http_server
 from redis.asyncio import Redis
@@ -103,13 +102,7 @@ class Worker:
         s = self.settings
         async with (
             httpx.AsyncClient() as http,
-            aiomqtt.Client(
-                hostname=s.mqtt_host,
-                port=s.mqtt_port,
-                username=s.mqtt_server_user,
-                password=s.mqtt_server_password.get_secret_value(),
-                identifier=f"pids-worker-{os.getpid()}",
-            ) as mqtt,
+            bus.mqtt_client(s, f"pids-worker-{os.getpid()}") as mqtt,
         ):
             node_ids = [n.id for site in self._sites.values() for n in site.nodes] or ["edge-01"]
             channels: dict[str, Channel] = {

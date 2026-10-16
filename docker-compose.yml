@@ -60,8 +60,11 @@ services:
       MQTT_HEALTH_PASSWORD: ${MQTT_SERVER_PASSWORD}
     ports:
       - "127.0.0.1:${MQTT_PORT:-1883}:1883"
+      # TLS (make certs); MQTT_TLS_BIND=0.0.0.0 lets edge nodes on the LAN connect
+      - "${MQTT_TLS_BIND:-127.0.0.1}:${MQTT_TLS_PORT:-8883}:8883"
     volumes:
       - ./infra/mosquitto/docker-entrypoint.sh:/docker-entrypoint-pids.sh:ro
+      - ./infra/certs/out:/mosquitto/certs:ro
       - ./infra/mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
       - ./infra/mosquitto/acl:/mosquitto/config/acl:ro
       - mqttdata:/mosquitto/data

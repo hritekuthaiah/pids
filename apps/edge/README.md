@@ -54,6 +54,21 @@ Open the preview at <http://127.0.0.1:8090/stream.mjpg> and status at `/status`.
 Frames are shown live and never stored. `uv run pids-edge run --source clip.mp4`
 replays a recording through the same pipeline.
 
+## Over the network (TLS)
+
+On one laptop the edge node talks to the broker over loopback. An edge node on
+another machine (a Pi at the fence) must use TLS:
+
+```bash
+make certs SAN="192.168.1.20"        # on the server: dev CA + broker cert (add its LAN IP)
+make up-lan                          # broker listens for TLS on 8883 on the LAN
+# copy infra/certs/out/ca.crt (only the CA certificate) to the edge machine, then there:
+MQTT_HOST=192.168.1.20 MQTT_CA_FILE=ca.crt make edge
+```
+
+The edge verifies the broker's certificate and hostname, and never falls back to
+plain text.
+
 ## GPS module
 
 Plug it in and run `make gps-probe`. It tries each serial port at each common baud

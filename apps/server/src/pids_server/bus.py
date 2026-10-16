@@ -9,8 +9,11 @@ from __future__ import annotations
 
 from typing import Any
 
+import aiomqtt
 import orjson
 from pydantic import BaseModel
+
+from pids_server.settings import Settings
 
 
 def mqtt_telemetry(site_id: str, stream: str) -> str:
@@ -68,3 +71,21 @@ def _default(o: Any) -> Any:
 
 def loads(raw: bytes | str) -> Any:
     return orjson.loads(raw)
+
+
+def mqtt_client(settings: Settings, identifier: str) -> aiomqtt.Client:
+    """The server's broker connection; TLS with the broker certificate verified when a CA
+    is configured (MQTT_CA_FILE), as off-host links must be (NFR-03)."""
+    tls = (
+        aiomqtt.TLSParameters(ca_certs=str(settings.mqtt_ca_file))
+        if settings.mqtt_ca_file
+        else None
+    )
+    return aiomqtt.Client(
+        hostname=settings.mqtt_host,
+        port=settings.mqtt_port,
+        username=settings.mqtt_server_user,
+        password=settings.mqtt_server_password.get_secret_value(),
+        identifier=identifier,
+        tls_params=tls,
+    )
