@@ -202,7 +202,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** List Sites */
+        /**
+         * List Sites
+         * @description All seeded sites, the live one (``PIDS_SITE_CONFIG``) first.
+         */
         get: operations["list_sites_api_v1_sites_get"];
         put?: never;
         post?: never;
