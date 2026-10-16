@@ -8,9 +8,11 @@ from enum import StrEnum
 from typing import Any, ClassVar
 
 from geoalchemy2 import Geometry
+from pgvector.sqlalchemy import Vector
 from sqlalchemy import (
     BigInteger,
     Boolean,
+    Computed,
     DateTime,
     Enum,
     ForeignKey,
@@ -21,7 +23,7 @@ from sqlalchemy import (
     Text,
     func,
 )
-from sqlalchemy.dialects.postgresql import JSONB, UUID
+from sqlalchemy.dialects.postgresql import JSONB, TSVECTOR, UUID
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 
@@ -246,3 +248,53 @@ class AuditLog(Base):
     target: Mapped[str] = mapped_column(String(200))
     detail: Mapped[dict[str, Any]] = mapped_column(default=dict)
     ip: Mapped[str | None] = mapped_column(String(64))
+
+
+# ---------------------------------------------------------------- agent layer
+
+#: Dimension of the local sentence-embedding model (BAAI/bge-small-en-v1.5).
+EMBED_DIM = 384
+
+
+class ProcedureChunk(Base):
+    """One section of a site standard operating procedure, indexed for retrieval (AIL-07):
+    a dense embedding for meaning and a full-text vector for exact terms, fused at query."""
+
+    __tablename__ = "procedure_chunks"
+    __table_args__ = (Index("ix_procedure_chunks_tsv", "tsv", postgresql_using="gin"),)
+
+    id: Mapped[str] = mapped_column(String(160), primary_key=True)  # "<doc>#<n>"
+    doc: Mapped[str] = mapped_column(String(120), index=True)
+    title: Mapped[str] = mapped_column(String(200))
+    heading: Mapped[str] = mapped_column(String(200))
+    body: Mapped[str] = mapped_column(Text)
+    embedding = mapped_column(Vector(EMBED_DIM), nullable=False)
+    tsv = mapped_column(
+        TSVECTOR,
+        Computed("to_tsvector('english', heading || ' ' || body)", persisted=True),
+    )
+
+
+class AgentReport(Base):
+    """Output of the LLM agent: a triage of one alert, or an answered event-log query.
+
+    Recommendations are *proposals*: each has its own approve/reject decision by a
+    named operator; the agent itself can never act (ADR-0007)."""
+
+    __tablename__ = "agent_reports"
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    kind: Mapped[str] = mapped_column(String(16))  # triage | query
+    alert_id: Mapped[str | None] = mapped_column(
+        ForeignKey("alerts.id", ondelete="CASCADE"), index=True
+    )
+    site_id: Mapped[str] = mapped_column(ForeignKey("sites.id", ondelete="CASCADE"))
+    requested_by: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id"))
+    provider: Mapped[str] = mapped_column(String(32))
+    model: Mapped[str] = mapped_column(String(64))
+    created_at: Mapped[datetime] = mapped_column(default=utcnow)
+    latency_ms: Mapped[int] = mapped_column(Integer)
+    content: Mapped[dict[str, Any]]
+    #: action index (as str) -> {"decision": approved|rejected, "by": uuid, "at": iso, "note": str}
+    decisions: Mapped[dict[str, Any]] = mapped_column(default=dict)
+    tool_calls: Mapped[dict[str, Any]] = mapped_column(default=dict)

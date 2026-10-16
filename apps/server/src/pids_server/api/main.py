@@ -17,7 +17,7 @@ from redis.asyncio import Redis
 from sqlalchemy import text
 
 from pids_server import __version__
-from pids_server.api.routes import alerts, auth, devices, sites
+from pids_server.api.routes import agent, alerts, auth, devices, sites
 from pids_server.api.ws import Hub
 from pids_server.api.ws import router as ws_router
 from pids_server.db.session import Database
@@ -87,6 +87,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(sites.router, prefix=api)
     app.include_router(alerts.router, prefix=api)
     app.include_router(devices.router, prefix=api)
+    app.include_router(agent.router, prefix=api)
     app.include_router(ws_router)
 
     @app.get("/health/live", tags=["health"])

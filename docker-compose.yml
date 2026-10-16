@@ -88,7 +88,7 @@ services:
     command:
       - sh
       - -c
-      - alembic -c apps/server/alembic.ini upgrade head && pids-admin seed --site "$${PIDS_SITE_CONFIG:-config/sites/site-alpha.yaml}"
+      - alembic -c apps/server/alembic.ini upgrade head && pids-admin seed --site "$${PIDS_SITE_CONFIG:-config/sites/site-alpha.yaml}" && pids-admin index-procedures --dir config/sops
     env_file: .env
     environment: &app-env
       POSTGRES_HOST: db
