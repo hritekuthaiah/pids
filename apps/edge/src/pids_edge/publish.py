@@ -10,11 +10,13 @@ short replay is safe.
 from __future__ import annotations
 
 import logging
+import ssl
 import threading
 import time
 from collections import deque
 from collections.abc import Callable
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any
 
 import paho.mqtt.client as mqtt
@@ -75,6 +77,7 @@ class MqttPublisher:
         client_id: str,
         outbox: Outbox,
         will: tuple[str, bytes] | None = None,
+        ca_file: Path | None = None,
     ) -> None:
         self.outbox = outbox
         self._lock = threading.Lock()
@@ -82,6 +85,15 @@ class MqttPublisher:
         self.sent = 0
         c = mqtt.Client(CallbackAPIVersion.VERSION2, client_id=client_id)
         c.username_pw_set(username, password)
+        if ca_file is not None:
+            # Off-host links are TLS-only (NFR-03): verify the broker's certificate and
+            # hostname against our CA; never fall back to plain text.
+            c.tls_set(
+                ca_certs=str(ca_file),
+                cert_reqs=ssl.CERT_REQUIRED,
+                tls_version=ssl.PROTOCOL_TLS_CLIENT,
+            )
+            c.tls_insecure_set(False)
         c.reconnect_delay_set(min_delay=1, max_delay=30)
         if will is not None:
             c.will_set(will[0], will[1], qos=1, retain=True)

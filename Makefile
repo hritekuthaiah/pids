@@ -29,6 +29,10 @@ env-sync: ## Add keys that are new in .env.example to an existing .env (fresh se
 	  fi; \
 	done
 
+.PHONY: certs
+certs: ## Dev CA + MQTT broker certificate for TLS on 8883 (add LAN names: make certs SAN="192.168.1.20")
+	infra/certs/gen-dev-ca.sh $(SAN)
+
 .PHONY: setup
 setup: env ## One-time bootstrap: .env, Python + JS deps, git hooks
 	uv sync --all-packages
@@ -47,8 +51,8 @@ up-all: ## Start infrastructure + containerised API, decision service and worker
 	$(COMPOSE) --profile app up -d --build --wait
 
 .PHONY: up-lan
-up-lan: ## Like up-all, but the API listens on the LAN for guard phones (demo network only)
-	API_BIND=0.0.0.0 $(COMPOSE) --profile app up -d --build --wait
+up-lan: ## Like up-all, but the API (and MQTT over TLS) listen on the LAN for phones and edge nodes
+	API_BIND=0.0.0.0 MQTT_TLS_BIND=0.0.0.0 $(COMPOSE) --profile app up -d --build --wait
 	@echo "guard app server address: $$(ipconfig getifaddr en0 2>/dev/null || hostname -I | cut -d' ' -f1):$${API_PORT:-8000}"
 
 .PHONY: obs

@@ -105,13 +105,7 @@ class DecisionService:
         backoff = 1.0
         while not self._stop.is_set():
             try:
-                async with aiomqtt.Client(
-                    hostname=s.mqtt_host,
-                    port=s.mqtt_port,
-                    username=s.mqtt_server_user,
-                    password=s.mqtt_server_password.get_secret_value(),
-                    identifier=f"pids-decision-{self.site.id}",
-                ) as client:
+                async with bus.mqtt_client(s, f"pids-decision-{self.site.id}") as client:
                     for stream in _STREAMS:
                         await client.subscribe(bus.mqtt_telemetry(self.site.id, stream), qos=1)
                     log.info("mqtt connected", site=self.site.id)
