@@ -11,10 +11,12 @@ dependencies = [
   "numpy>=2.2",
   "scikit-learn>=1.7",
   "joblib>=1.5",
+  "matplotlib>=3.10",
 ]
 
 [project.scripts]
 pids-train = "pids_ml.cli:main"
+pids-eval = "pids_ml.evaluate:main"
 
 [tool.uv.sources]
 pids-core = { workspace = true }

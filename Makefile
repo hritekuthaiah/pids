@@ -138,6 +138,10 @@ hooks: ## Run every pre-commit hook against the whole repo
 train: ## Train the anomaly model and refit the decision model (training seeds 0-999)
 	$(UV) pids-train all -n 200
 
+.PHONY: eval
+eval: ## Evaluation harness: PIDS vs baselines + ablations on held-out seeds -> docs/evaluation/
+	$(UV) pids-eval -n 20
+
 .PHONY: sim
 sim: ## Quick PIDS-vs-baseline comparison on a few simulated scenarios
 	$(UV) pids-sim -n 3
