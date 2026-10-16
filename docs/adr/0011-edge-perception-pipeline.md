@@ -59,3 +59,17 @@ tests checks the chain to centimetres; on 200 held-out synthetic constant-veloci
 scenes ByteTrack scores MOTA 0.999 with no ID switches — an upper bound, since real
 footage adds non-linear motion and appearance confusion. Per-class detection accuracy
 on real images and PyTorch/ONNX/INT8 benchmarks remain open work (#22, #26).
+
+## Measured (2026-10-16, `make edge-eval`, COCO val2017)
+
+- **Accuracy:** YOLO26n gets 0.402 mAP50-95 in PyTorch FP32 and 0.397 in ONNX FP32,
+  so the export is essentially lossless. Static INT8 (QDQ, per-channel, calibrated on
+  128 val images) costs 0.038 mAP, of which 0.033 is person AP. Person recall barely
+  moves (0.674 → 0.672).
+- **Latency on the demo laptop's CPU** (single image, 640²): ONNX FP32 takes 19.8 ms
+  against 49.2 ms for PyTorch, 2.5× faster. INT8 is *not* faster here (22.0 ms).
+  ONNX Runtime's FP32 kernels are already well vectorised on this ARM core, and QDQ
+  adds conversion overhead.
+- **Decision:** ship ONNX FP32 on the laptop. INT8 (3.1 MB vs 9.9 MB) is the option for
+  memory-constrained nodes, accepting the small accuracy cost. Re-measure on a Pi 5
+  before choosing it there.

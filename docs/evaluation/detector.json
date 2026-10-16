@@ -1,0 +1,150 @@
+{
+  "meta": {
+    "machine": "arm64 arm",
+    "eval_set": "COCO val2017 (5000 images); INT8 calibrated on the first 128",
+    "imgsz": 640
+  },
+  "results": {
+    "PyTorch FP32": {
+      "file": "yolo26n.pt",
+      "size_mb": 5.54,
+      "latency_p50_ms": 49.23,
+      "latency_p95_ms": 51.02,
+      "fps": 20.3,
+      "mAP50-95": 0.40229536830065343,
+      "mAP50": 0.5624927648598008,
+      "pids": {
+        "person": {
+          "mAP50-95": 0.5168658653756977,
+          "mAP50": 0.7557077384303147,
+          "recall": 0.686286856698197,
+          "coco_classes": [
+            "person"
+          ]
+        },
+        "vehicle": {
+          "mAP50-95": 0.44788290463136393,
+          "mAP50": 0.636346394140838,
+          "recall": 0.579990090006943,
+          "coco_classes": [
+            "car",
+            "motorcycle",
+            "bus",
+            "truck"
+          ]
+        },
+        "animal": {
+          "mAP50-95": 0.6079600707388744,
+          "mAP50": 0.7945761721410205,
+          "recall": 0.7501701838895016,
+          "coco_classes": [
+            "bird",
+            "cat",
+            "dog",
+            "horse",
+            "sheep",
+            "cow",
+            "elephant",
+            "bear",
+            "zebra",
+            "giraffe"
+          ]
+        }
+      }
+    },
+    "ONNX FP32": {
+      "file": "yolo26n.onnx",
+      "size_mb": 9.94,
+      "latency_p50_ms": 19.83,
+      "latency_p95_ms": 21.86,
+      "fps": 50.4,
+      "mAP50-95": 0.39732624448585346,
+      "mAP50": 0.5520049939214263,
+      "pids": {
+        "person": {
+          "mAP50-95": 0.5126942833939292,
+          "mAP50": 0.7467677839759137,
+          "recall": 0.6742136030435186,
+          "coco_classes": [
+            "person"
+          ]
+        },
+        "vehicle": {
+          "mAP50-95": 0.4391923638341548,
+          "mAP50": 0.6189230973029078,
+          "recall": 0.5451657553745723,
+          "coco_classes": [
+            "car",
+            "motorcycle",
+            "bus",
+            "truck"
+          ]
+        },
+        "animal": {
+          "mAP50-95": 0.6037677709685033,
+          "mAP50": 0.7841343767883644,
+          "recall": 0.7352672133348201,
+          "coco_classes": [
+            "bird",
+            "cat",
+            "dog",
+            "horse",
+            "sheep",
+            "cow",
+            "elephant",
+            "bear",
+            "zebra",
+            "giraffe"
+          ]
+        }
+      }
+    },
+    "ONNX INT8": {
+      "file": "yolo26n-int8.onnx",
+      "size_mb": 3.09,
+      "latency_p50_ms": 21.98,
+      "latency_p95_ms": 23.58,
+      "fps": 45.5,
+      "mAP50-95": 0.3639892818231323,
+      "mAP50": 0.5175761246792886,
+      "pids": {
+        "person": {
+          "mAP50-95": 0.4838534511309914,
+          "mAP50": 0.7253829766339676,
+          "recall": 0.6715226872042313,
+          "coco_classes": [
+            "person"
+          ]
+        },
+        "vehicle": {
+          "mAP50-95": 0.40161542482922136,
+          "mAP50": 0.5776896377090828,
+          "recall": 0.5624390276962662,
+          "coco_classes": [
+            "car",
+            "motorcycle",
+            "bus",
+            "truck"
+          ]
+        },
+        "animal": {
+          "mAP50-95": 0.5728456919165128,
+          "mAP50": 0.7624005139729471,
+          "recall": 0.7391438663405083,
+          "coco_classes": [
+            "bird",
+            "cat",
+            "dog",
+            "horse",
+            "sheep",
+            "cow",
+            "elephant",
+            "bear",
+            "zebra",
+            "giraffe"
+          ]
+        }
+      }
+    }
+  }
+}

@@ -185,6 +185,10 @@ EDGE_CONFIG ?= config/edge/edge-01.yaml
 edge-model: ## Export the YOLO26n detector to ONNX (one-off, isolated env, ~2 min)
 	apps/edge/scripts/export-model.sh
 
+.PHONY: edge-eval
+edge-eval: ## Detector accuracy (COCO val2017) + PyTorch/ONNX/INT8 benchmarks -> docs/evaluation/detector.md
+	apps/edge/scripts/evaluate-detector.sh
+
 .PHONY: edge-cameras
 edge-cameras: ## List camera indices the edge node can open
 	$(UV) pids-edge cameras
