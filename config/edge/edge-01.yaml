@@ -20,3 +20,13 @@ publish:
 preview:
   host: 127.0.0.1
   port: 8090
+
+sensors:
+  # A USB/serial GPS module carried as a cooperative tag. `make gps-probe` finds it;
+  # then set driver: serial (port/baud auto-detect). Stream it alone: `make gps`.
+  gps:
+    driver: none
+    tag_id: gps-puck-1
+  # No thermal array on the demo laptop; mlx90640 on a Pi with the sensor fitted.
+  thermal:
+    driver: none

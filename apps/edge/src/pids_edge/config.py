@@ -8,7 +8,7 @@ never live here — they come from the environment.
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, Literal
 
 import yaml
 from pydantic import BaseModel, ConfigDict, Field, model_validator
@@ -74,6 +74,27 @@ class PreviewConfig(_Config):
     jpeg_quality: Annotated[int, Field(ge=10, le=95)] = 70
 
 
+class GpsConfig(_Config):
+    """A serial GPS module carried as a cooperative tag (PLT-03)."""
+
+    driver: Literal["none", "serial"] = "none"
+    port: str = Field(default="auto", description="device path, or auto-detect")
+    baud: Annotated[int, Field(gt=0)] | None = Field(default=None, description="None = detect")
+    tag_id: str | None = Field(default=None, description="registry tag this module reports as")
+
+
+class ThermalSensorConfig(_Config):
+    driver: Literal["none", "mlx90640"] = "none"
+    delta_c: Annotated[float, Field(gt=0)] = Field(
+        default=4.0, description="degrees above the frame median that count as warm"
+    )
+
+
+class SensorsConfig(_Config):
+    gps: GpsConfig = Field(default_factory=GpsConfig)
+    thermal: ThermalSensorConfig = Field(default_factory=ThermalSensorConfig)
+
+
 class EdgeConfig(_Config):
     site: Path
     node_id: Annotated[str, Field(pattern=r"^[a-z0-9][a-z0-9-]{1,62}$")]
@@ -83,6 +104,13 @@ class EdgeConfig(_Config):
     ground: GroundConfig
     publish: PublishConfig = Field(default_factory=PublishConfig)
     preview: PreviewConfig = Field(default_factory=PreviewConfig)
+    sensors: SensorsConfig = Field(default_factory=SensorsConfig)
+
+    @model_validator(mode="after")
+    def _gps_needs_a_tag(self) -> EdgeConfig:
+        if self.sensors.gps.driver != "none" and not self.sensors.gps.tag_id:
+            raise ValueError("sensors.gps.tag_id is required when a GPS driver is enabled")
+        return self
 
     @model_validator(mode="after")
     def _thresholds_ordered(self) -> EdgeConfig:

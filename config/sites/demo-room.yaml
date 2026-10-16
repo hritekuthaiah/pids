@@ -50,6 +50,8 @@ tags:
   # Team phones acting as passive BLE badges (ADR-0011, upcoming).
   - { id: badge-team-1, label: "Team badge 1", kind: person }
   - { id: badge-team-2, label: "Team badge 2", kind: person }
+  # The USB GPS module, carried by a teammate for the outdoor segment.
+  - { id: gps-puck-1, label: "GPS module (carried)", kind: person }
 
 features:
   gates:
