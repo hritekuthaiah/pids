@@ -174,6 +174,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/guards/me/badge": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * My Badge
+         * @description The calling guard's badge secret — only their own, only over an authenticated
+         *     session. Phones derive the rolling identifier locally; nothing else is shared.
+         */
+        get: operations["my_badge_api_v1_guards_me_badge_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/guards/me/location": {
         parameters: {
             query?: never;
@@ -481,6 +502,25 @@ export interface components {
              * @constant
              */
             type: "alerts_snapshot";
+        };
+        /**
+         * BadgeOut
+         * @description What a guard's phone needs to advertise its rolling BLE badge (ADR-0012).
+         */
+        BadgeOut: {
+            /** Company Id */
+            company_id: number;
+            /**
+             * Payload Prefix Hex
+             * @description magic + version, before the 8-byte rolling id
+             */
+            payload_prefix_hex: string;
+            /** Secret Hex */
+            secret_hex: string;
+            /** Tag Id */
+            tag_id: string;
+            /** Window S */
+            window_s: number;
         };
         /**
          * ChannelContribution
@@ -1049,6 +1089,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    my_badge_api_v1_guards_me_badge_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BadgeOut"];
                 };
             };
         };

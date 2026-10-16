@@ -477,6 +477,41 @@
         "title": "AlertsSnapshotMessage",
         "type": "object"
       },
+      "BadgeOut": {
+        "description": "What a guard's phone needs to advertise its rolling BLE badge (ADR-0012).",
+        "properties": {
+          "company_id": {
+            "title": "Company Id",
+            "type": "integer"
+          },
+          "payload_prefix_hex": {
+            "description": "magic + version, before the 8-byte rolling id",
+            "title": "Payload Prefix Hex",
+            "type": "string"
+          },
+          "secret_hex": {
+            "title": "Secret Hex",
+            "type": "string"
+          },
+          "tag_id": {
+            "title": "Tag Id",
+            "type": "string"
+          },
+          "window_s": {
+            "title": "Window S",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "tag_id",
+          "secret_hex",
+          "window_s",
+          "company_id",
+          "payload_prefix_hex"
+        ],
+        "title": "BadgeOut",
+        "type": "object"
+      },
       "ChannelContribution": {
         "additionalProperties": false,
         "description": "How much one evidence channel moved the fused log-odds (for explanation).",
@@ -1636,6 +1671,33 @@
           }
         ],
         "summary": "Register Push Token",
+        "tags": [
+          "devices"
+        ]
+      }
+    },
+    "/api/v1/guards/me/badge": {
+      "get": {
+        "description": "The calling guard's badge secret \u2014 only their own, only over an authenticated\nsession. Phones derive the rolling identifier locally; nothing else is shared.",
+        "operationId": "my_badge_api_v1_guards_me_badge_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BadgeOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "My Badge",
         "tags": [
           "devices"
         ]

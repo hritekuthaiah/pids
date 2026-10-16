@@ -35,6 +35,7 @@ class Settings(BaseSettings):
     access_token_ttl_minutes: int = 15
     refresh_token_ttl_days: int = 7
 
+    badge_key: SecretStr | None = Field(default=None, alias="PIDS_BADGE_KEY")
     site_config: Path = Field(
         default=Path("config/sites/site-alpha.yaml"), alias="PIDS_SITE_CONFIG"
     )

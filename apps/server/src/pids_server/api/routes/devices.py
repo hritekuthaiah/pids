@@ -9,9 +9,10 @@ from fastapi import APIRouter, HTTPException, Request, status
 from pydantic import BaseModel, Field
 from sqlalchemy.dialects.postgresql import insert
 
+from pids_core import badges
 from pids_core.contracts import GeoPoint, GpsFix
 from pids_server import bus
-from pids_server.api.deps import AnyUser, Guard, SessionDep
+from pids_server.api.deps import AnyUser, Guard, SessionDep, SettingsDep, audit
 from pids_server.db import models as m
 
 router = APIRouter(tags=["devices"])
@@ -20,6 +21,16 @@ router = APIRouter(tags=["devices"])
 class PushTokenIn(BaseModel):
     token: Annotated[str, Field(min_length=10, max_length=255)]
     platform: Literal["android", "ios", "web"] = "android"
+
+
+class BadgeOut(BaseModel):
+    """What a guard's phone needs to advertise its rolling BLE badge (ADR-0012)."""
+
+    tag_id: str
+    secret_hex: str
+    window_s: int
+    company_id: int
+    payload_prefix_hex: str = Field(description="magic + version, before the 8-byte rolling id")
 
 
 class LocationIn(BaseModel):
@@ -42,6 +53,32 @@ async def register_push_token(body: PushTokenIn, principal: AnyUser, session: Se
         )
     )
     await session.commit()
+
+
+@router.get("/guards/me/badge", response_model=BadgeOut)
+async def my_badge(
+    principal: Guard, settings: SettingsDep, session: SessionDep, request: Request
+) -> BadgeOut:
+    """The calling guard's badge secret — only their own, only over an authenticated
+    session. Phones derive the rolling identifier locally; nothing else is shared."""
+    if principal.tag_id is None:
+        raise HTTPException(status.HTTP_409_CONFLICT, "no tag is assigned to this guard")
+    if settings.badge_key is None:
+        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, "BLE badges are not configured")
+    raw = settings.badge_key.get_secret_value()
+    try:
+        key = bytes.fromhex(raw)
+    except ValueError:
+        key = raw.encode()
+    await audit(session, principal, "badge.issue", principal.tag_id, request)
+    await session.commit()
+    return BadgeOut(
+        tag_id=principal.tag_id,
+        secret_hex=badges.badge_secret(key, principal.tag_id).hex(),
+        window_s=badges.WINDOW_S,
+        company_id=badges.COMPANY_ID,
+        payload_prefix_hex=(badges.MAGIC + bytes([badges.VERSION_ROLLING])).hex(),
+    )
 
 
 @router.post("/guards/me/location", status_code=status.HTTP_202_ACCEPTED)

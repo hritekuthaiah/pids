@@ -19,6 +19,16 @@ env: ## Create .env from .env.example with freshly generated secrets (never over
 	done
 	@echo "wrote .env with random secrets"
 
+.PHONY: env-sync
+env-sync: ## Add keys that are new in .env.example to an existing .env (fresh secrets; never overwrites)
+	@touch .env
+	@grep -E '^[A-Z_][A-Z0-9_]*=' .env.example | while IFS='=' read -r key value; do \
+	  if ! grep -qE "^$$key=" .env; then \
+	    if [ "$$value" = "CHANGE_ME" ]; then value=$$(openssl rand -hex 32); fi; \
+	    printf '%s=%s\n' "$$key" "$$value" >> .env; echo "added $$key"; \
+	  fi; \
+	done
+
 .PHONY: setup
 setup: env ## One-time bootstrap: .env, Python + JS deps, git hooks
 	uv sync --all-packages

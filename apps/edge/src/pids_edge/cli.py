@@ -7,6 +7,7 @@
     pids-edge markers --out markers/ --ids 0-5
     pids-edge gps --probe                     identify a plugged-in GPS module
     pids-edge gps --config ...                stream GPS fixes to MQTT (no camera)
+    pids-edge ble                             list PIDS badges heard over Bluetooth
 
 MQTT credentials come from the environment (``MQTT_HOST``, ``MQTT_PORT``,
 ``MQTT_EDGE_USER``, ``MQTT_EDGE_PASSWORD``); ``make edge`` loads them from ``.env``.
@@ -26,6 +27,9 @@ from pids_core.site import Site
 from pids_edge.config import EdgeConfig
 
 if TYPE_CHECKING:
+    from datetime import datetime
+
+    from pids_edge.ble import BadgeScanner
     from pids_edge.gps import GpsReader
     from pids_edge.nmea import Fix
     from pids_edge.publish import MqttPublisher
@@ -104,6 +108,35 @@ def _start_gps(cfg: EdgeConfig, site: Site, publisher: MqttPublisher | None) -> 
     return reader
 
 
+def _start_ble(cfg: EdgeConfig, site: Site, publisher: MqttPublisher | None) -> BadgeScanner | None:
+    from pids_core.badges import BadgeResolver
+    from pids_core.contracts import TagRead
+    from pids_edge.ble import BadgeAggregator, BadgeScanner, site_key_from_env
+
+    b = cfg.sensors.ble
+    if b.driver == "none" or b.reader_id is None:
+        return None
+    reader = site.readers.get(b.reader_id)
+    if reader is None or reader.kind != "ble":
+        raise ValueError(f"{b.reader_id!r} is not a `kind: ble` reader in {cfg.site}")
+    reader_id = b.reader_id
+    topic = f"pids/{site.id}/{cfg.node_id}/sensors"
+
+    def on_read(tag: str, rssi: float, at: datetime) -> None:
+        log.debug("badge %s %.0f dBm", tag, rssi)
+        if publisher:
+            read = TagRead(
+                site_id=site.id, reader_id=reader_id, tag_id=tag, at=at, rssi_dbm=round(rssi, 1),
+                trace={"captured": at},
+            )  # fmt: skip
+            publisher.publish(topic, read.model_dump_json().encode())
+
+    resolver = BadgeResolver(site_key_from_env(), site.tags, allow_static=b.allow_static)
+    scanner = BadgeScanner(BadgeAggregator(resolver, on_read))
+    scanner.start()
+    return scanner
+
+
 def cmd_run(args: argparse.Namespace) -> int:
     from pids_edge.camera import open_source
     from pids_edge.config import CameraConfig
@@ -143,6 +176,7 @@ def cmd_run(args: argparse.Namespace) -> int:
             log.error("%s", exc)
             return 2
     gps = _start_gps(cfg, site, publisher)
+    ble = _start_ble(cfg, site, publisher)
 
     preview: PreviewServer | None = None
     if cfg.preview.enabled and not args.no_preview:
@@ -153,6 +187,8 @@ def cmd_run(args: argparse.Namespace) -> int:
     finally:
         if gps:
             gps.stop()
+        if ble:
+            ble.stop()
     return 0
 
 
@@ -199,6 +235,55 @@ def cmd_gps(args: argparse.Namespace) -> int:
         reader.stop()
     if publisher:
         publisher.stop()
+    return 0
+
+
+def cmd_ble(args: argparse.Namespace) -> int:
+    """Listen for PIDS badges and print who is heard, how loud (no MQTT)."""
+    import signal
+    import threading
+
+    from pids_core.badges import BadgeResolver
+    from pids_edge.ble import BadgeAggregator, BadgeScanner, site_key_from_env
+
+    cfg = EdgeConfig.from_yaml(args.config)
+    site = Site.from_yaml(cfg.site)
+
+    def show(tag: str, rssi: float, at: datetime) -> None:
+        log.info("%s  %-16s %6.1f dBm", at.strftime("%H:%M:%S"), tag, rssi)
+
+    resolver = BadgeResolver(site_key_from_env(), site.tags, allow_static=args.allow_static)
+    agg = BadgeAggregator(resolver, show, interval_s=1.0)
+    scanner = BadgeScanner(agg)
+    stop = threading.Event()
+    for sig in (signal.SIGINT, signal.SIGTERM):
+        signal.signal(sig, lambda *_: stop.set())
+    scanner.start()
+    while not stop.wait(10.0):
+        log.info(
+            "(other BLE adverts: %d, unresolved PIDS ids: %d)", agg.heard_other, agg.unresolved
+        )
+    scanner.stop()
+    return 0
+
+
+def cmd_badge_code(args: argparse.Namespace) -> int:
+    """Manufacturer data for a phone BLE-advertiser app (bench testing; static = replayable)."""
+    from pids_core.badges import COMPANY_ID, VERSION_STATIC, badge_secret, payload, static_id
+    from pids_edge.ble import site_key_from_env
+
+    cfg = EdgeConfig.from_yaml(args.config)
+    site = Site.from_yaml(cfg.site)
+    if args.tag not in site.tags:
+        log.error("unknown tag %s (known: %s)", args.tag, ", ".join(site.tags))
+        return 2
+    data = payload(static_id(badge_secret(site_key_from_env(), args.tag)), VERSION_STATIC)
+    log.info(
+        "advertise manufacturer data — company id 0x%04X, data 0x%s", COMPANY_ID, data.hex().upper()
+    )
+    log.info(
+        "then run the edge with sensors.ble.allow_static: true (bench only: a static id can be replayed)"
+    )
     return 0
 
 
@@ -282,6 +367,16 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--port", default="auto")
     p.add_argument("--offline", action="store_true", help="print fixes without MQTT")
     p.set_defaults(fn=cmd_gps)
+
+    p = sub.add_parser("ble", help="listen for PIDS badges and print who is heard")
+    p.add_argument("--config", type=Path, default=_DEFAULT_CONFIG)
+    p.add_argument("--allow-static", action="store_true")
+    p.set_defaults(fn=cmd_ble)
+
+    p = sub.add_parser("badge-code", help="static badge payload for a phone advertiser app")
+    p.add_argument("tag")
+    p.add_argument("--config", type=Path, default=_DEFAULT_CONFIG)
+    p.set_defaults(fn=cmd_badge_code)
 
     p = sub.add_parser("calibrate", help="floor homography from markers or clicked tape marks")
     p.add_argument("--config", type=Path, default=_DEFAULT_CONFIG)

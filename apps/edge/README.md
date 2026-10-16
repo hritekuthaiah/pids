@@ -67,6 +67,20 @@ published as `GpsFix` for tag `gps-puck-1`. `make gps` streams them without a ca
 e.g. from a laptop carried outdoors. The accuracy estimate is HDOP × 4 m (UERE),
 floored at 2.5 m.
 
+## BLE badges (team phones)
+
+`sensors.ble.driver: bleak` turns the laptop's Bluetooth into a passive badge reader
+(ADR-0012). It listens for rolling PIDS identifiers, resolves them with
+`PIDS_BADGE_KEY` from `.env`, and publishes smoothed `TagRead`s with RSSI. The decision
+core links a badge to a person only when the RSSI clearly follows that person's
+motion. `uv run pids-edge ble` lists the badges it hears. macOS asks for Bluetooth
+permission for the app running it.
+
+The guard app advertises the rolling identifier. For bench testing before that, a
+generic BLE advertiser app can broadcast a fixed id. Get it with
+`pids-edge badge-code badge-team-1`, then set `sensors.ble.allow_static: true` on
+that machine. A fixed id is replayable, so never use one at the demo.
+
 ## Thermal
 
 `sensors.thermal.driver: mlx90640` reads a Melexis MLX90640 over I2C on a Pi. Each

@@ -15,6 +15,7 @@ from edge_helpers import DEMO_SITE, dets, frame, person_box, true_calibration
 from pids_core.geo import heading_deg
 from pids_core.site import Site
 from pids_edge.config import EdgeConfig, GroundConfig
+from pids_edge.detector import Detections
 from pids_edge.gps import probe, to_contract
 from pids_edge.ground import GroundPlane
 from pids_edge.nmea import NmeaError, NmeaState, checksum, split
@@ -155,6 +156,19 @@ def test_probe_ignores_a_silent_port() -> None:
 # ---------------------------------------------------------------------------
 
 
+class OnePerson:
+    """A detector that always sees one person standing at a floor point."""
+
+    last_inference_ms = 1.0
+
+    def __init__(self, where: tuple[float, float]) -> None:
+        self.box = person_box(*where)
+
+    def __call__(self, image: np.ndarray) -> Detections:
+        del image
+        return dets([self.box], [0.9])
+
+
 def test_relative_bearing_wraps() -> None:
     assert relative_bearing(125, 140) == pytest.approx(15)
     assert relative_bearing(350, 10) == pytest.approx(20)
@@ -181,17 +195,8 @@ def test_tracks_get_heat_confirmation_from_the_array() -> None:
     site = Site.from_yaml(DEMO_SITE)
     cfg = EdgeConfig(site=DEMO_SITE, node_id="edge-01", ground=GroundConfig(calibration=Path("x")))
     where = (5.0, 2.0)
-    box = person_box(*where)
-
-    class One:
-        last_inference_ms = 1.0
-
-        def __call__(self, image: np.ndarray) -> object:
-            del image
-            return dets([box], [0.9])
-
     cam = SyntheticThermal()
-    node = EdgeNode(cfg, site, One(), GroundPlane(true_calibration()), thermal=cam)  # type: ignore[arg-type]
+    node = EdgeNode(cfg, site, OnePerson(where), GroundPlane(true_calibration()), thermal=cam)
     here = site.config.nodes[0].position
     cam.bodies = [relative_bearing(125, heading_deg(where[0] - here[0], where[1] - here[1]))]
     for k in range(3):

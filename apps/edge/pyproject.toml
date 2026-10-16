@@ -7,6 +7,7 @@ requires-python = ">=3.12"
 license = "AGPL-3.0-or-later"
 dependencies = [
   "pids-core",
+  "bleak>=3.0",
   "numpy>=2.2",
   "onnxruntime>=1.23",
   "opencv-python>=4.12",
