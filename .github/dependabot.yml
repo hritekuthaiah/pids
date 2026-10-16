@@ -15,6 +15,19 @@ updates:
       python-minor-patch:
         update-types: [minor, patch]
 
+  - package-ecosystem: npm
+    directory: /
+    schedule: { interval: weekly }
+    commit-message: { prefix: build }
+    groups:
+      npm-minor-patch:
+        update-types: [minor, patch]
+    ignore:
+      # TypeScript 7 (native compiler) drops the JS compiler API that
+      # openapi-typescript and typescript-eslint depend on.
+      - dependency-name: typescript
+        update-types: [version-update:semver-major]
+
   - package-ecosystem: docker
     directories: [/infra/postgres]
     schedule: { interval: weekly }
