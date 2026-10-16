@@ -1,0 +1,319 @@
+@import "tailwindcss";
+
+/* Self-hosted fonts: the console must work on an air-gapped site network. */
+@import "@fontsource/oxanium/500.css";
+@import "@fontsource/oxanium/600.css";
+@import "@fontsource/oxanium/700.css";
+@import "@fontsource/ibm-plex-sans-condensed/400.css";
+@import "@fontsource/ibm-plex-sans-condensed/500.css";
+@import "@fontsource/ibm-plex-sans-condensed/600.css";
+@import "@fontsource/ibm-plex-mono/400.css";
+@import "@fontsource/ibm-plex-mono/500.css";
+
+@theme {
+  --font-display: "Oxanium", ui-sans-serif, sans-serif;
+  --font-sans: "IBM Plex Sans Condensed", ui-sans-serif, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, monospace;
+
+  /* olive-tinted ink: easier on operators' eyes over a long night shift */
+  --color-ink-950: #040605;
+  --color-ink-900: #080b0a;
+  --color-ink-850: #0c110e;
+  --color-ink-800: #111813;
+  --color-ink-700: #18221c;
+  --color-line: #1d2922;
+  --color-line-strong: #2f4237;
+
+  --color-fg: #d9e5de;
+  --color-fg-muted: #8fa198;
+  --color-fg-dim: #5d6e65;
+
+  /* system / interaction */
+  --color-phosphor: #6ff2a6;
+  --color-phosphor-dim: #2f7a52;
+
+  /* threat semantics only — never used for decoration */
+  --color-nominal: #5f7a6e;
+  --color-elevated: #e3ca4c;
+  --color-warning: #ff8a1f;
+  --color-critical: #ff3b3b;
+  --color-containment: #b48cff;
+
+  --animate-pulse-ring: pulse-ring 1.6s cubic-bezier(0.2, 0.6, 0.3, 1) infinite;
+  --animate-stripes: stripes 1.2s linear infinite;
+  --animate-rise: rise 0.5s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+  --animate-blink: blink 1s steps(2, start) infinite;
+
+  @keyframes pulse-ring {
+    0% {
+      transform: scale(0.6);
+      opacity: 0.9;
+    }
+    100% {
+      transform: scale(2.6);
+      opacity: 0;
+    }
+  }
+  @keyframes stripes {
+    to {
+      background-position: 56px 0;
+    }
+  }
+  @keyframes rise {
+    from {
+      opacity: 0;
+      transform: translateY(6px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+  @keyframes blink {
+    to {
+      visibility: hidden;
+    }
+  }
+}
+
+@layer base {
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+  body {
+    @apply bg-ink-950 text-fg font-sans antialiased;
+    font-feature-settings: "tnum" 1;
+    /* faint survey grid + vignette: a working surface, not a flat void */
+    background-image:
+      radial-gradient(ellipse at 50% 40%, transparent 0%, rgb(0 0 0 / 0.55) 100%),
+      linear-gradient(rgb(111 242 166 / 0.025) 1px, transparent 1px),
+      linear-gradient(90deg, rgb(111 242 166 / 0.025) 1px, transparent 1px);
+    background-size:
+      100% 100%,
+      48px 48px,
+      48px 48px;
+  }
+  ::selection {
+    background: rgb(111 242 166 / 0.25);
+  }
+  :focus-visible {
+    outline: 1px solid var(--color-phosphor);
+    outline-offset: 2px;
+  }
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--color-line-strong) transparent;
+  }
+}
+
+@layer components {
+  /* Panels carry HUD corner brackets drawn with gradients — no extra DOM. */
+  .hud {
+    --bracket: var(--color-line-strong);
+    --len: 10px;
+    position: relative;
+    background-color: rgb(12 17 14 / 0.86);
+    backdrop-filter: blur(6px);
+    border: 1px solid var(--color-line);
+    background-image:
+      linear-gradient(var(--bracket), var(--bracket)),
+      linear-gradient(var(--bracket), var(--bracket)),
+      linear-gradient(var(--bracket), var(--bracket)),
+      linear-gradient(var(--bracket), var(--bracket)),
+      linear-gradient(var(--bracket), var(--bracket)),
+      linear-gradient(var(--bracket), var(--bracket)),
+      linear-gradient(var(--bracket), var(--bracket)),
+      linear-gradient(var(--bracket), var(--bracket));
+    background-repeat: no-repeat;
+    background-size:
+      var(--len) 2px,
+      2px var(--len),
+      var(--len) 2px,
+      2px var(--len),
+      var(--len) 2px,
+      2px var(--len),
+      var(--len) 2px,
+      2px var(--len);
+    background-position:
+      top -1px left -1px,
+      top -1px left -1px,
+      top -1px right -1px,
+      top -1px right -1px,
+      bottom -1px left -1px,
+      bottom -1px left -1px,
+      bottom -1px right -1px,
+      bottom -1px right -1px;
+  }
+  .hud-title {
+    @apply font-display text-[11px] font-semibold tracking-[0.22em] text-fg-muted uppercase;
+  }
+  .hazard {
+    background-image: repeating-linear-gradient(
+      -45deg,
+      rgb(255 59 59 / 0.9) 0 14px,
+      rgb(40 6 6 / 0.9) 14px 28px
+    );
+    background-size: 56px 100%;
+  }
+  .field {
+    @apply w-full border border-line-strong bg-ink-900 px-3 py-2 font-mono text-sm text-fg placeholder:text-fg-dim focus:border-phosphor focus:outline-none;
+  }
+}
+
+/* Buttons are utilities so variants can compose the base with @apply. */
+@utility btn {
+  @apply font-display inline-flex items-center gap-1.5 border px-2.5 py-1 text-[11px] font-semibold tracking-[0.14em] uppercase transition-colors disabled:opacity-40;
+}
+@utility btn-primary {
+  @apply btn border-phosphor/60 text-phosphor hover:bg-phosphor/10;
+}
+@utility btn-ghost {
+  @apply btn border-line-strong text-fg-muted hover:border-fg-dim hover:text-fg;
+}
+@utility btn-danger {
+  @apply btn border-critical/70 bg-critical/10 text-critical hover:bg-critical/20;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+}
+
+/* MapLibre chrome, restyled to match the console */
+.maplibregl-ctrl-group {
+  background: rgb(12 17 14 / 0.9) !important;
+  border: 1px solid var(--color-line) !important;
+  border-radius: 0 !important;
+}
+.maplibregl-ctrl-group button + button {
+  border-top-color: var(--color-line) !important;
+}
+.maplibregl-ctrl button .maplibregl-ctrl-icon {
+  filter: invert(0.85) sepia(0.4) hue-rotate(90deg);
+}
+.maplibregl-ctrl-attrib {
+  background: rgb(4 6 5 / 0.7) !important;
+  color: var(--color-fg-dim) !important;
+  font-size: 10px !important;
+}
+.maplibregl-ctrl-attrib a {
+  color: var(--color-fg-muted) !important;
+}
+
+/* ---------------------------------------------------------------- map markers */
+.entity {
+  --c: var(--color-nominal);
+  position: relative;
+  width: 14px;
+  height: 14px;
+  cursor: pointer;
+}
+.entity[data-level="elevated"] {
+  --c: var(--color-elevated);
+}
+.entity[data-level="warning"] {
+  --c: var(--color-warning);
+}
+.entity[data-level="critical"] {
+  --c: var(--color-critical);
+}
+.entity-dot {
+  position: absolute;
+  inset: 3px;
+  border-radius: 9999px;
+  background: var(--c);
+  box-shadow:
+    0 0 0 2px rgb(4 6 5 / 0.9),
+    0 0 12px var(--c);
+}
+/* cooperative (tagged) entities are drawn hollow: identity, not threat */
+.entity[data-tagged="true"] .entity-dot {
+  background: rgb(4 6 5 / 0.9);
+  box-shadow:
+    inset 0 0 0 2px var(--c),
+    0 0 8px var(--c);
+}
+.entity-arrow {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 0;
+  height: 0;
+  margin: -16px 0 0 -4px;
+  border-left: 4px solid transparent;
+  border-right: 4px solid transparent;
+  border-bottom: 7px solid var(--c);
+  transform-origin: 4px 16px;
+}
+.entity-ring {
+  position: absolute;
+  inset: 0;
+  border-radius: 9999px;
+  border: 1.5px solid var(--c);
+  opacity: 0;
+}
+.entity[data-level="warning"] .entity-ring,
+.entity[data-level="critical"] .entity-ring {
+  animation: var(--animate-pulse-ring);
+}
+.entity[data-level="critical"] .entity-ring {
+  animation-duration: 0.9s;
+}
+.entity-label {
+  position: absolute;
+  left: 16px;
+  top: -3px;
+  white-space: pre;
+  font: 500 10px/1 var(--font-mono);
+  letter-spacing: 0.04em;
+  color: var(--c);
+  text-shadow:
+    0 0 3px #000,
+    0 0 3px #000;
+  pointer-events: none;
+}
+.entity-reticle {
+  position: absolute;
+  inset: -9px;
+  display: none;
+  --b: var(--color-phosphor);
+  background:
+    linear-gradient(var(--b), var(--b)) top left / 7px 1.5px no-repeat,
+    linear-gradient(var(--b), var(--b)) top left / 1.5px 7px no-repeat,
+    linear-gradient(var(--b), var(--b)) top right / 7px 1.5px no-repeat,
+    linear-gradient(var(--b), var(--b)) top right / 1.5px 7px no-repeat,
+    linear-gradient(var(--b), var(--b)) bottom left / 7px 1.5px no-repeat,
+    linear-gradient(var(--b), var(--b)) bottom left / 1.5px 7px no-repeat,
+    linear-gradient(var(--b), var(--b)) bottom right / 7px 1.5px no-repeat,
+    linear-gradient(var(--b), var(--b)) bottom right / 1.5px 7px no-repeat;
+}
+.entity.is-selected .entity-reticle {
+  display: block;
+}
+.entity.is-selected {
+  z-index: 10;
+}
+
+.zone-label {
+  font: 600 9.5px/1 var(--font-display);
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  padding: 2px 5px;
+  pointer-events: none;
+  background: rgb(4 6 5 / 0.65);
+}
+.zone-warning {
+  color: var(--color-warning);
+}
+.zone-critical {
+  color: var(--color-critical);
+}
+.zone-containment {
+  color: var(--color-containment);
+}
