@@ -1694,6 +1694,7 @@
     },
     "/api/v1/sites": {
       "get": {
+        "description": "All seeded sites, the live one (``PIDS_SITE_CONFIG``) first.",
         "operationId": "list_sites_api_v1_sites_get",
         "responses": {
           "200": {
