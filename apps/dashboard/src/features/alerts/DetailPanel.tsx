@@ -5,6 +5,7 @@ import { Chip, LevelBadge, Panel, Stat } from "../../components/ui";
 import { pids } from "../../lib/api";
 import { FLAG_LABEL, LEVEL_COLOR, entityLabel, humanize } from "../../lib/format";
 import { useLive } from "../../state/live";
+import { TriagePanel } from "../agent/TriagePanel";
 import { FusionBreakdown } from "./FusionBreakdown";
 
 export function DetailPanel() {
@@ -77,6 +78,7 @@ export function DetailPanel() {
         )}
         <FusionBreakdown contributions={a.contributions} probability={a.probability} />
         <div className="font-mono text-[10px] text-fg-dim">sources: {a.sources.join(" · ")}</div>
+        {alertId && <TriagePanel alertId={alertId} />}
         {alertId && <Timeline alertId={alertId} />}
       </div>
     </Panel>

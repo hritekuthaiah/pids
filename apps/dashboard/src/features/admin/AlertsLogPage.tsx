@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Chip, LevelBadge, Panel } from "../../components/ui";
 import { pids } from "../../lib/api";
 import { entityLabel, humanize } from "../../lib/format";
+import { LogQuestion } from "../agent/LogQuestion";
 
 const STATUS_TONE: Record<string, string> = {
   open: "var(--color-critical)",
@@ -35,6 +36,7 @@ export function AlertsLogPage({ siteId }: { siteId: string }) {
       }
       className="flex-1"
     >
+      <LogQuestion siteId={siteId} />
       <div className="min-h-0 flex-1 overflow-y-auto">
         <table className="w-full text-left text-[13px]">
           <thead className="hud-title sticky top-0 border-b border-line bg-ink-850">
