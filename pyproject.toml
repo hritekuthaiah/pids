@@ -77,7 +77,7 @@ explicit_package_bases = true
 exclude = ['/migrations/versions/']
 
 [[tool.mypy.overrides]]
-module = ["shapely.*", "sklearn.*", "joblib.*", "scipy.*", "onnxruntime.*"]
+module = ["shapely.*", "sklearn.*", "joblib.*", "scipy.*", "onnxruntime.*", "matplotlib.*"]
 ignore_missing_imports = true
 
 # ---------------------------------------------------------------------------
