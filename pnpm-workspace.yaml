@@ -1,0 +1,6 @@
+packages:
+  - packages/api-client
+  - apps/dashboard
+  - apps/guard
+onlyBuiltDependencies:
+  - esbuild

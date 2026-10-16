@@ -1,0 +1,21 @@
+{
+  "name": "pids",
+  "private": true,
+  "packageManager": "pnpm@10.34.7",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "gen:api": "uv run python -m pids_server.api.export_openapi packages/api-client/openapi.json && pnpm --filter @pids/api-client generate",
+    "typecheck": "pnpm -r --if-present typecheck",
+    "lint": "pnpm -r --if-present lint",
+    "test": "pnpm -r --if-present test",
+    "build": "pnpm -r --if-present build",
+    "format": "prettier --write apps/dashboard packages/api-client",
+    "format:check": "prettier --check apps/dashboard packages/api-client"
+  },
+  "devDependencies": {
+    "prettier": "^3.9.10",
+    "typescript": "^5.9.3"
+  }
+}
