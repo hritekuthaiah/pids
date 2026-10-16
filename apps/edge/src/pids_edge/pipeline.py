@@ -29,7 +29,7 @@ from pids_core.contracts import (
     VisionTrack,
     ZoneKind,
 )
-from pids_core.geo import Enu
+from pids_core.geo import Enu, heading_deg
 from pids_core.site import NodeConfig, Site
 from pids_edge.camera import Frame, FrameSource
 from pids_edge.config import EdgeConfig
@@ -37,6 +37,7 @@ from pids_edge.detector import Detector
 from pids_edge.ground import FloorFix, GroundPlane
 from pids_edge.preview import PreviewServer
 from pids_edge.publish import MqttPublisher
+from pids_edge.thermal import ThermalArray, relative_bearing, warm_at
 from pids_edge.tracker import ByteTracker, Track
 
 log = logging.getLogger("pids_edge")
@@ -80,6 +81,7 @@ class EdgeNode:
         ground: GroundPlane,
         *,
         boot: str | None = None,
+        thermal: ThermalArray | None = None,
     ) -> None:
         nodes = {n.id: n for n in site.config.nodes}
         if config.node_id not in nodes:
@@ -94,10 +96,24 @@ class EdgeNode:
         self.boot = boot or f"{int(time.time()) % 100_000:05d}"
         self._here = Enu(*self.node.position)
         self._max_range = self.node.range_m * config.ground.max_range_factor
+        self.thermal = thermal
+
+    def _heat(self, heat: NDArray[np.float32] | None, at: Enu) -> bool | None:
+        """Heat confirmation at a floor position; None without thermal coverage there."""
+        if heat is None or self.thermal is None:
+            return None
+        bearing = heading_deg(at.east - self._here.east, at.north - self._here.north)
+        return warm_at(
+            heat,
+            relative_bearing(self.node.heading_deg, bearing),
+            self.thermal.fov_deg,
+            delta_c=self.config.sensors.thermal.delta_c,
+        )
 
     def process(self, frame: Frame) -> tuple[TrackBatch, list[Observed]]:
         detections = self.detector(frame.image)
         tracks = self.tracker.update(detections, frame.monotonic)
+        heat = self.thermal.frame() if self.thermal is not None else None
         observed: list[Observed] = []
         wire: list[VisionTrack] = []
         for tr in tracks:
@@ -114,7 +130,7 @@ class EdgeNode:
                     position=GeoPoint(lat=lat, lon=lon),
                     position_sigma_m=round(fix.sigma_m, 3),
                     hits=tr.hits,
-                    thermal_confirmed=None,  # no thermal array on this node
+                    thermal_confirmed=self._heat(heat, fix.position),
                 )
             )
             observed.append(Observed(tr, fix, wire_id))

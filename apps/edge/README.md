@@ -54,6 +54,27 @@ Open the preview at <http://127.0.0.1:8090/stream.mjpg> and status at `/status`.
 Frames are shown live and never stored. `uv run pids-edge run --source clip.mp4`
 replays a recording through the same pipeline.
 
+## GPS module
+
+Plug it in and run `make gps-probe`. It tries each serial port at each common baud
+rate and keeps the first that gives checksum-valid NMEA. It then reports the module
+as far as the module describes itself (u-blox and others announce hardware and
+firmware over `$GPTXT`), and says whether it already has a position fix. Most modules
+work: u-blox NEO-6M/7M/M8N/M10, Quectel, MediaTek, and USB pucks like the VK-162.
+
+To use it, set `sensors.gps.driver: serial` in `config/edge/edge-01.yaml`. Fixes are
+published as `GpsFix` for tag `gps-puck-1`. `make gps` streams them without a camera,
+e.g. from a laptop carried outdoors. The accuracy estimate is HDOP × 4 m (UERE),
+floored at 2.5 m.
+
+## Thermal
+
+`sensors.thermal.driver: mlx90640` reads a Melexis MLX90640 over I2C on a Pi. Each
+track's bearing is checked for heat at least 4 °C above the frame median, and the
+result is published as `thermal_confirmed`. With no array fitted, the value is `None`,
+which fusion treats as neutral. The live demo runs without thermal: `SyntheticThermal`
+exists for tests only.
+
 ## Tests
 
 `uv run pytest apps/edge` covers the following. A synthetic pinhole camera looks at

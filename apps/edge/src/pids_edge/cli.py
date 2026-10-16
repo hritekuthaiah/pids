@@ -5,6 +5,8 @@
     pids-edge calibrate --config ... --marks config/edge/edge-01.marks.yaml [--mode click]
     pids-edge calibrate-pose --config ... --height 2.4 --pitch 30 --hfov 70
     pids-edge markers --out markers/ --ids 0-5
+    pids-edge gps --probe                     identify a plugged-in GPS module
+    pids-edge gps --config ...                stream GPS fixes to MQTT (no camera)
 
 MQTT credentials come from the environment (``MQTT_HOST``, ``MQTT_PORT``,
 ``MQTT_EDGE_USER``, ``MQTT_EDGE_PASSWORD``); ``make edge`` loads them from ``.env``.
@@ -17,9 +19,16 @@ import logging
 import os
 import sys
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from pids_core.contracts import NodeHealth, NodeStatus
 from pids_core.site import Site
+from pids_edge.config import EdgeConfig
+
+if TYPE_CHECKING:
+    from pids_edge.gps import GpsReader
+    from pids_edge.nmea import Fix
+    from pids_edge.publish import MqttPublisher
 
 log = logging.getLogger("pids_edge")
 
@@ -38,16 +47,71 @@ def cmd_cameras(_: argparse.Namespace) -> int:
     return 0
 
 
-def cmd_run(args: argparse.Namespace) -> int:
+class _NoCredentialsError(Exception):
+    pass
+
+
+def _publisher(cfg: EdgeConfig, site: Site) -> MqttPublisher:
+    """This node's MQTT connection (username = node id, per the broker ACL)."""
     from datetime import UTC, datetime
 
+    from pids_edge.publish import MqttPublisher, Outbox
+
+    user = os.environ.get("MQTT_EDGE_USER", cfg.node_id)
+    if user != cfg.node_id:
+        log.warning(
+            "MQTT_EDGE_USER=%s but node is %s: the broker ACL will refuse it", user, cfg.node_id
+        )
+    password = os.environ.get("MQTT_EDGE_PASSWORD")
+    if not password:
+        raise _NoCredentialsError("MQTT_EDGE_PASSWORD is not set (use `make edge`, or --offline)")
+    will = NodeHealth(
+        site_id=site.id, node_id=cfg.node_id, at=datetime.now(UTC), status=NodeStatus.OFFLINE
+    )
+    publisher = MqttPublisher(
+        host=os.environ.get("MQTT_HOST", "localhost"),
+        port=int(os.environ.get("MQTT_PORT", "1883")),
+        username=user,
+        password=password,
+        client_id=f"pids-edge-{cfg.node_id}",
+        outbox=Outbox(cfg.publish.buffer_limit, cfg.publish.replay_window_s),
+        will=(f"pids/{site.id}/{cfg.node_id}/health", will.model_dump_json().encode()),
+    )
+    publisher.start()
+    return publisher
+
+
+def _start_gps(cfg: EdgeConfig, site: Site, publisher: MqttPublisher | None) -> GpsReader | None:
+    from pids_edge.gps import GpsReader, to_contract
+
+    g = cfg.sensors.gps
+    if g.driver == "none" or g.tag_id is None:
+        return None
+    tag_id = g.tag_id
+    topic = f"pids/{site.id}/{cfg.node_id}/gps"
+
+    def on_fix(fix: Fix) -> None:
+        msg = to_contract(site.id, tag_id, fix)
+        log.info(
+            "GPS %s: %.6f, %.6f  ±%.1f m  %s sats",
+            tag_id, fix.lat, fix.lon, fix.accuracy_m, fix.satellites if fix.satellites is not None else "?",
+        )  # fmt: skip
+        if publisher:
+            publisher.publish(topic, msg.model_dump_json().encode())
+
+    reader = GpsReader(on_fix, port=g.port, baud=g.baud)
+    reader.start()
+    return reader
+
+
+def cmd_run(args: argparse.Namespace) -> int:
     from pids_edge.camera import open_source
-    from pids_edge.config import CameraConfig, EdgeConfig
+    from pids_edge.config import CameraConfig
     from pids_edge.detector import YoloDetector
     from pids_edge.ground import Calibration, GroundPlane
     from pids_edge.pipeline import EdgeNode, run
     from pids_edge.preview import PreviewServer
-    from pids_edge.publish import MqttPublisher, Outbox
+    from pids_edge.thermal import Mlx90640, ThermalArray
 
     cfg = EdgeConfig.from_yaml(args.config)
     site = Site.from_yaml(cfg.site)
@@ -68,52 +132,78 @@ def cmd_run(args: argparse.Namespace) -> int:
         log.error("camera produced no frames")
         return 1
     ground = GroundPlane(Calibration.load(cfg.ground.calibration), first.size)
-    node = EdgeNode(cfg, site, detector, ground)
+    thermal: ThermalArray | None = Mlx90640() if cfg.sensors.thermal.driver == "mlx90640" else None
+    node = EdgeNode(cfg, site, detector, ground, thermal=thermal)
 
     publisher: MqttPublisher | None = None
     if not args.offline:
-        user = os.environ.get("MQTT_EDGE_USER", cfg.node_id)
-        if user != cfg.node_id:
-            log.warning(
-                "MQTT_EDGE_USER=%s but node is %s: the broker ACL will refuse it", user, cfg.node_id
-            )
-        password = os.environ.get("MQTT_EDGE_PASSWORD")
-        if not password:
-            log.error("MQTT_EDGE_PASSWORD is not set (use `make edge`, or --offline)")
+        try:
+            publisher = _publisher(cfg, site)
+        except _NoCredentialsError as exc:
+            log.error("%s", exc)
             return 2
-        health_topic = f"pids/{site.id}/{cfg.node_id}/health"
-        will = (
-            NodeHealth(
-                site_id=site.id,
-                node_id=cfg.node_id,
-                at=datetime.now(UTC),
-                status=NodeStatus.OFFLINE,
-            )
-            .model_dump_json()
-            .encode()
-        )
-        publisher = MqttPublisher(
-            host=os.environ.get("MQTT_HOST", "localhost"),
-            port=int(os.environ.get("MQTT_PORT", "1883")),
-            username=user,
-            password=password,
-            client_id=f"pids-edge-{cfg.node_id}",
-            outbox=Outbox(cfg.publish.buffer_limit, cfg.publish.replay_window_s),
-            will=(health_topic, will),
-        )
-        publisher.start()
+    gps = _start_gps(cfg, site, publisher)
 
     preview: PreviewServer | None = None
     if cfg.preview.enabled and not args.no_preview:
         preview = PreviewServer(cfg.preview.host, cfg.preview.port, cfg.preview.jpeg_quality)
         preview.start()
-    run(node, source, publisher, preview, model_name=cfg.detector.model.stem)
+    try:
+        run(node, source, publisher, preview, model_name=cfg.detector.model.stem)
+    finally:
+        if gps:
+            gps.stop()
+    return 0
+
+
+def cmd_gps(args: argparse.Namespace) -> int:
+    """Identify a GPS module (--probe), or stream its fixes to MQTT without a camera."""
+    import signal
+    import threading
+
+    from pids_edge.gps import candidate_ports, probe
+
+    if args.probe:
+        ports = candidate_ports() if args.port == "auto" else [args.port]
+        log.info("serial ports to try: %s", ", ".join(ports) or "none found")
+        found = probe(ports)
+        if found is None:
+            log.error(
+                "no NMEA GPS found — check the cable/adapter, and that the module's LED "
+                "blinks (powered). On macOS a CH340/CP210x adapter may need its driver."
+            )
+            return 1
+        log.info("GPS module on %s at %d baud", found.port, found.baud)
+        log.info("%s", found.description)
+        log.info(
+            "position fix: %s", "yes" if found.has_fix else "not yet (go outdoors, wait 1-2 min)"
+        )
+        return 0
+
+    cfg = EdgeConfig.from_yaml(args.config)
+    if cfg.sensors.gps.driver == "none":
+        log.error("sensors.gps.driver is 'none' in %s", args.config)
+        return 2
+    site = Site.from_yaml(cfg.site)
+    try:
+        publisher = None if args.offline else _publisher(cfg, site)
+    except _NoCredentialsError as exc:
+        log.error("%s", exc)
+        return 2
+    stop = threading.Event()
+    for sig in (signal.SIGINT, signal.SIGTERM):
+        signal.signal(sig, lambda *_: stop.set())
+    reader = _start_gps(cfg, site, publisher)
+    stop.wait()
+    if reader:
+        reader.stop()
+    if publisher:
+        publisher.stop()
     return 0
 
 
 def cmd_calibrate(args: argparse.Namespace) -> int:
     from pids_edge.calibrate import FloorMarks, interactive
-    from pids_edge.config import EdgeConfig
 
     cfg = EdgeConfig.from_yaml(args.config)
     site = Site.from_yaml(cfg.site)
@@ -135,7 +225,6 @@ def cmd_calibrate(args: argparse.Namespace) -> int:
 
 def cmd_calibrate_pose(args: argparse.Namespace) -> int:
     from pids_edge.calibrate import pose_calibration
-    from pids_edge.config import EdgeConfig
 
     cfg = EdgeConfig.from_yaml(args.config)
     site = Site.from_yaml(cfg.site)
@@ -186,6 +275,13 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--offline", action="store_true", help="do not connect to MQTT")
     p.add_argument("--no-preview", action="store_true")
     p.set_defaults(fn=cmd_run)
+
+    p = sub.add_parser("gps", help="identify a GPS module (--probe) or stream it to MQTT")
+    p.add_argument("--config", type=Path, default=_DEFAULT_CONFIG)
+    p.add_argument("--probe", action="store_true", help="find the port and baud, then exit")
+    p.add_argument("--port", default="auto")
+    p.add_argument("--offline", action="store_true", help="print fixes without MQTT")
+    p.set_defaults(fn=cmd_gps)
 
     p = sub.add_parser("calibrate", help="floor homography from markers or clicked tape marks")
     p.add_argument("--config", type=Path, default=_DEFAULT_CONFIG)

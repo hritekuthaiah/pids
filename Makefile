@@ -144,6 +144,14 @@ edge-model: ## Export the YOLO26n detector to ONNX (one-off, isolated env, ~2 mi
 edge-cameras: ## List camera indices the edge node can open
 	$(UV) pids-edge cameras
 
+.PHONY: gps-probe
+gps-probe: ## Identify a plugged-in GPS module: port, baud, constellations, model text
+	$(UV) pids-edge gps --probe
+
+.PHONY: gps
+gps: ## Stream the GPS module's fixes to MQTT (no camera), per sensors.gps in EDGE_CONFIG
+	set -a && . ./.env && set +a && $(UV) pids-edge gps --config $(EDGE_CONFIG)
+
 .PHONY: edge
 edge: ## Run the camera edge node against the stack; preview at http://127.0.0.1:8090/stream.mjpg
 	set -a && . ./.env && set +a && $(UV) pids-edge run --config $(EDGE_CONFIG)
