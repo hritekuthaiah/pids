@@ -180,6 +180,17 @@ services:
     depends_on: [prometheus]
     restart: unless-stopped
 
+  console:
+    <<: *restart
+    profiles: [app]
+    image: pids/console:dev
+    build: { context: ., dockerfile: apps/dashboard/Dockerfile }
+    ports:
+      # loopback by default; make demo / up-lan expose it for a second screen on the LAN
+      - "${API_BIND:-127.0.0.1}:${CONSOLE_PORT:-8080}:8080"
+    depends_on:
+      api: { condition: service_healthy }
+
 volumes:
   pgdata:
   redisdata:

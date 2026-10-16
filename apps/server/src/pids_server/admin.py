@@ -107,6 +107,25 @@ async def index_procedures(folder: Path) -> None:
     sys.stdout.write(f"indexed {n} procedure sections from {folder}\n")
 
 
+async def reset_site(site_id: str) -> None:
+    """Clear one site's alerts, history and agent reports (users, zones and tags stay).
+
+    For rehearsals: restart the decision service afterwards so its in-memory alert
+    state starts clean too (``make demo-reset`` does both).
+    """
+    from sqlalchemy import delete
+
+    db = Database(get_settings().database_url)
+    async with db.session() as s:
+        counts = {}
+        for model in (m.AgentReport, m.Observation, m.Alert):  # events/notifications cascade
+            res = await s.execute(delete(model).where(model.site_id == site_id))
+            counts[model.__tablename__] = res.rowcount  # type: ignore[attr-defined]
+        await s.commit()
+    await db.dispose()
+    sys.stdout.write(f"reset {site_id}: {counts}\n")
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(prog="pids-admin", description=__doc__)
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -118,11 +137,15 @@ def main(argv: list[str] | None = None) -> int:
     u.add_argument("--role", choices=[r.value for r in m.Role], required=True)
     u.add_argument("--tag")
     u.add_argument("--password-env", required=True)
+    rs = sub.add_parser("reset-site")
+    rs.add_argument("--site", required=True)
     ip = sub.add_parser("index-procedures")
     ip.add_argument("--dir", type=Path, default=Path("config/sops"))
     args = ap.parse_args(argv)
     if args.cmd == "seed":
         asyncio.run(seed(args.site))
+    elif args.cmd == "reset-site":
+        asyncio.run(reset_site(args.site))
     elif args.cmd == "index-procedures":
         asyncio.run(index_procedures(args.dir))
     else:

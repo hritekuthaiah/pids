@@ -56,6 +56,23 @@ obs: ## Prometheus + Grafana (dashboard "PIDS — operations" on http://localhos
 	@grep -qE '^GRAFANA_ADMIN_PASSWORD=.+' .env || { echo "GRAFANA_ADMIN_PASSWORD missing in .env — run: make env-sync"; exit 1; }
 	$(COMPOSE) --profile app --profile obs up -d --wait
 
+.PHONY: demo
+demo: ## Live demo: demo-room site, API + TLS broker on the LAN, production console on :8080
+	@$(MAKE) --no-print-directory env-sync
+	@if [ -x infra/certs/gen-dev-ca.sh ] && [ ! -f infra/certs/out/broker.crt ]; then \
+	  infra/certs/gen-dev-ca.sh $$(ipconfig getifaddr en0 2>/dev/null || hostname -I | cut -d' ' -f1); fi
+	PIDS_SITE_CONFIG=config/sites/demo-room.yaml API_BIND=0.0.0.0 MQTT_TLS_BIND=0.0.0.0 \
+	  $(COMPOSE) --profile app up -d --build --wait
+	@ip=$$(ipconfig getifaddr en0 2>/dev/null || hostname -I | cut -d' ' -f1); \
+	  echo; echo "console      http://localhost:$${CONSOLE_PORT:-8080}   (projector / LAN: http://$$ip:$${CONSOLE_PORT:-8080})"; \
+	  echo "guard app    server address $$ip:$${API_PORT:-8000}"; \
+	  echo "next         make edge (camera, separate terminal) · make obs (Grafana) · docs/demo/script.md"
+
+.PHONY: demo-reset
+demo-reset: ## Clear the demo room's alerts and history between rehearsals (keeps users, zones, tags)
+	$(COMPOSE) exec -T api pids-admin reset-site --site demo-room
+	$(COMPOSE) restart decision
+
 .PHONY: dev-api
 dev-api: ## Run the API natively with reload-free uvicorn (uses .env)
 	set -a && . ./.env && set +a && $(UV) pids-api
