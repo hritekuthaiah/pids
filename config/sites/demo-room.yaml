@@ -44,7 +44,14 @@ nodes:
     fov_deg: 70
     range_m: 12
 
-readers: []
+readers:
+  # The edge laptop's Bluetooth, listening for team phones acting as badges
+  # (ADR-0012). It hears the whole room, so badges are linked to people by
+  # RSSI-vs-motion evidence, never by proximity alone.
+  - id: edge-01-ble
+    position: [0.3, 5.7]
+    range_m: 12
+    kind: ble
 
 tags:
   # Team phones acting as passive BLE badges (ADR-0011, upcoming).

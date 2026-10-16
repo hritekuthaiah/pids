@@ -35,6 +35,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from pids_core.alerts import AlertPolicy, AlertTracker
 from pids_core.anomaly import AnomalyScorer
+from pids_core.badges import BadgeLinker, Candidate
 from pids_core.contracts import (
     AlertEvent,
     EntityClass,
@@ -130,6 +131,7 @@ class _Entity:
     edge_anomaly: float | None = None
     linked_tag: str | None = None
     rfid_tag: str | None = None
+    badge_tag: str | None = None  # BLE badge, linked by RSSI-vs-motion evidence
     # tag
     tag_id: str | None = None
     tag_kind: TagKind = TagKind.PERSON
@@ -171,6 +173,7 @@ class DecisionEngine:
         self.alerts = AlertTracker(policy=self.config.alerts, site_id=namespace)
         self._entities: dict[str, _Entity] = {}
         self._pending_reads: list[TagRead] = []
+        self._linkers = {r.id: BadgeLinker() for r in site.config.readers if r.kind == "ble"}
         self._last_step_t: float | None = None
         self._tz = ZoneInfo(site.config.site.timezone)
         # Where a camera detects reliably (inner 70% of its range): only there does
@@ -242,6 +245,11 @@ class DecisionEngine:
         if best is not None:
             old = best[1]
             new.rfid_tag = old.rfid_tag
+            for linker in self._linkers.values():
+                for badge, owner in list(linker.links.items()):
+                    if owner == old.entity_id:  # the badge follows the person
+                        linker.links[badge] = new.entity_id
+                        new.badge_tag, old.badge_tag = badge, None
             new.class_probs = dict(old.class_probs)
             new.first_t = old.first_t
             if old.linked_tag is not None:
@@ -304,6 +312,7 @@ class DecisionEngine:
 
         self._associate(t)
         self._apply_tag_reads()
+        self._link_badges(t)
         self._check_tags_against_vision(t, dt)
 
         local_hour = _local_hour(now, self._tz)
@@ -385,6 +394,10 @@ class DecisionEngine:
             if reader is None:
                 continue
             rt = read.at.timestamp()
+            if reader.kind == "ble":
+                rssi = read.rssi_dbm if read.rssi_dbm is not None else -70.0
+                self._linkers[reader.id].hear(read.tag_id, rt, rssi)
+                continue
             rp = Enu(*reader.position)
             best: tuple[float, _Entity] | None = None
             for v in self._entities.values():
@@ -395,6 +408,36 @@ class DecisionEngine:
                     best = (d, v)
             if best is not None:
                 best[1].rfid_tag = read.tag_id
+
+    def _link_badges(self, t: float) -> None:
+        """Give each BLE badge to the one person whose motion its signal follows, if any."""
+        if not self._linkers:
+            return
+        linked: dict[str, str] = {}
+        for reader_id, linker in self._linkers.items():
+            reader = self.site.readers[reader_id]
+            rp = Enu(*reader.position)
+            candidates: list[Candidate] = []
+            for v in self._entities.values():
+                if v.kind != "vision" or not self._alive(v, t):
+                    continue
+                cls, _ = v.entity_class()
+                if cls not in (EntityClass.PERSON, EntityClass.UNKNOWN):
+                    continue  # badges are carried by people
+                if Enu(*v.kf.position).distance_to(rp) > reader.range_m:
+                    continue
+                window = v.history.window(t, linker.policy.window_s)
+                candidates.append(
+                    Candidate(
+                        v.entity_id,
+                        [(s.t, Enu(s.east, s.north).distance_to(rp)) for s in window],
+                    )
+                )
+            linker.update(t, candidates)
+            linked.update({eid: tag for tag, eid in linker.links.items()})
+        for v in self._entities.values():
+            if v.kind == "vision":
+                v.badge_tag = linked.get(v.entity_id)
 
     def _check_tags_against_vision(self, t: float, dt: float) -> None:
         if dt <= 0.0:
@@ -418,7 +461,7 @@ class DecisionEngine:
             g = self._entities.get(f"tag/{tag_id}")
             spoof = g.spoof.current(t) if g and g.spoof else 0.0
         else:
-            tag_id = ent.rfid_tag
+            tag_id = ent.badge_tag or ent.rfid_tag
         cfg = self.site.tags.get(tag_id) if tag_id else None
         authorized = bool(cfg and cfg.authorized)
         return tag_id, authorized, spoof, cfg.home_zone if cfg else None
@@ -504,6 +547,8 @@ class DecisionEngine:
             sources.append(f"gps:{ent.linked_tag}")
         if ent.rfid_tag:
             sources.append(f"rfid:{ent.rfid_tag}")
+        if ent.badge_tag:
+            sources.append(f"ble:{ent.badge_tag}")
         return ThreatAssessment(
             site_id=self.site.id,
             entity_id=ent.entity_id,
