@@ -1,0 +1,22 @@
+# Edge node edge-01 on the demo room. Secrets (MQTT password) come from .env.
+site: config/sites/demo-room.yaml
+node_id: edge-01
+
+camera:
+  source: 0        # `pids-edge cameras` lists indices; a video file path also works
+  width: 1280
+  height: 720
+  fps: 30
+
+detector:
+  model: apps/edge/models/yolo26n.onnx   # `make edge-model`
+
+ground:
+  calibration: config/edge/edge-01.calibration.yaml   # `pids-edge calibrate`
+
+publish:
+  rate_hz: 5
+
+preview:
+  host: 127.0.0.1
+  port: 8090

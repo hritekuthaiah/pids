@@ -101,7 +101,7 @@ lint: ## Lint Python
 
 .PHONY: typecheck
 typecheck: ## Static type-check Python (mypy --strict)
-	$(UV) mypy packages/core/src packages/sim/src ml/src apps/server/src
+	$(UV) mypy packages/core/src packages/sim/src ml/src apps/server/src apps/edge/src
 
 .PHONY: test
 test: ## Run unit tests (no infrastructure needed)
@@ -131,6 +131,22 @@ train: ## Train the anomaly model and refit the decision model (training seeds 0
 .PHONY: sim
 sim: ## Quick PIDS-vs-baseline comparison on a few simulated scenarios
 	$(UV) pids-sim -n 3
+
+##@ Edge node (runs natively: Docker on macOS cannot reach USB cameras)
+
+EDGE_CONFIG ?= config/edge/edge-01.yaml
+
+.PHONY: edge-model
+edge-model: ## Export the YOLO26n detector to ONNX (one-off, isolated env, ~2 min)
+	apps/edge/scripts/export-model.sh
+
+.PHONY: edge-cameras
+edge-cameras: ## List camera indices the edge node can open
+	$(UV) pids-edge cameras
+
+.PHONY: edge
+edge: ## Run the camera edge node against the stack; preview at http://127.0.0.1:8090/stream.mjpg
+	set -a && . ./.env && set +a && $(UV) pids-edge run --config $(EDGE_CONFIG)
 
 ##@ Help
 

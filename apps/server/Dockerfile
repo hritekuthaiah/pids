@@ -12,6 +12,8 @@ COPY packages/core/pyproject.toml packages/core/README.md packages/core/
 COPY packages/sim/pyproject.toml packages/sim/README.md packages/sim/
 COPY ml/pyproject.toml ml/README.md ml/
 COPY apps/server/pyproject.toml apps/server/README.md apps/server/
+# every workspace member's manifest must exist for uv to read the workspace
+COPY apps/edge/pyproject.toml apps/edge/README.md apps/edge/
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --frozen --no-dev --no-install-workspace --package pids-server
 

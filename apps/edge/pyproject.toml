@@ -1,0 +1,30 @@
+[project]
+name = "pids-edge"
+version = "0.1.0"
+description = "PIDS edge node: camera -> YOLO (ONNX Runtime) -> ByteTrack -> ground plane -> MQTT."
+readme = "README.md"
+requires-python = ">=3.12"
+license = "AGPL-3.0-or-later"
+dependencies = [
+  "pids-core",
+  "numpy>=2.2",
+  "onnxruntime>=1.23",
+  "opencv-python>=4.12",
+  "paho-mqtt>=2.1",
+  "pydantic>=2.11",
+  "pyyaml>=6.0",
+  "scipy>=1.16",
+]
+
+[project.scripts]
+pids-edge = "pids_edge.cli:main"
+
+[tool.uv.sources]
+pids-core = { workspace = true }
+
+[build-system]
+requires = ["uv_build>=0.11,<0.14"]
+build-backend = "uv_build"
+
+[tool.uv.build-backend]
+module-name = "pids_edge"
