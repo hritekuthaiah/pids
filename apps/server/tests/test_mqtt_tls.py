@@ -14,6 +14,7 @@ from pathlib import Path
 import aiomqtt
 import pytest
 
+from pids_server.bus import tls_context
 from pids_server.settings import Settings
 
 pytestmark = pytest.mark.integration
@@ -43,7 +44,7 @@ def _client(settings: Settings, ca: Path, host: str = "localhost") -> aiomqtt.Cl
         username=settings.mqtt_server_user,
         password=settings.mqtt_server_password.get_secret_value(),
         identifier="pids-tls-test",
-        tls_params=aiomqtt.TLSParameters(ca_certs=str(ca)),
+        tls_context=tls_context(ca),
         timeout=5,
     )
 
@@ -82,6 +83,7 @@ def rogue_ca(tmp_path: Path) -> Path:
 
 def _handshake(cafile: Path, server_name: str) -> None:
     ctx = ssl.create_default_context(cafile=str(cafile))  # verifies chain + hostname
+    ctx.minimum_version = ssl.TLSVersion.TLSv1_2
     with (
         socket.create_connection(("127.0.0.1", 8883), timeout=3) as raw,
         ctx.wrap_socket(raw, server_hostname=server_name),

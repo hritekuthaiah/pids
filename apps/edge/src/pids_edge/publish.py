@@ -88,11 +88,9 @@ class MqttPublisher:
         if ca_file is not None:
             # Off-host links are TLS-only (NFR-03): verify the broker's certificate and
             # hostname against our CA; never fall back to plain text.
-            c.tls_set(
-                ca_certs=str(ca_file),
-                cert_reqs=ssl.CERT_REQUIRED,
-                tls_version=ssl.PROTOCOL_TLS_CLIENT,
-            )
+            ctx = ssl.create_default_context(cafile=str(ca_file))
+            ctx.minimum_version = ssl.TLSVersion.TLSv1_2
+            c.tls_set_context(ctx)
             c.tls_insecure_set(False)
         c.reconnect_delay_set(min_delay=1, max_delay=30)
         if will is not None:
