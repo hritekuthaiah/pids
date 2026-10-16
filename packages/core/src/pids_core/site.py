@@ -13,7 +13,7 @@ harness read it directly — so all three always agree on the geometry.
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Annotated, Any
+from typing import Annotated, Any, Literal
 
 import yaml
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
@@ -66,11 +66,17 @@ class NodeConfig(_Config):
 
 
 class ReaderConfig(_Config):
-    """A fixed short-range RFID/BLE reader (e.g. at a gate)."""
+    """A fixed tag reader: a short-range RFID gate reader, or a BLE badge scanner.
+
+    An RFID read happens at the reader, so the nearest person is the one tapping. A
+    BLE scanner hears badges across its whole range, so its badges are linked to
+    tracks by RSSI-vs-motion evidence instead (``pids_core.badges``, ADR-0012).
+    """
 
     id: str
     position: XY
     range_m: Annotated[float, Field(gt=0)] = 4.0
+    kind: Literal["rfid", "ble"] = "rfid"
 
 
 class TagConfig(_Config):
