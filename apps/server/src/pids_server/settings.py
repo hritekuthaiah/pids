@@ -6,7 +6,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Literal
 
-from pydantic import Field, SecretStr
+from pydantic import Field, SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -33,6 +33,12 @@ class Settings(BaseSettings):
     #: CA certificate that signed the broker's TLS certificate; set it to connect over
     #: TLS (port 8883) with the broker verified. Unset = plain MQTT on the compose network.
     mqtt_ca_file: Path | None = None
+
+    @field_validator("mqtt_ca_file", "ollama_base_url", mode="before")
+    @classmethod
+    def _blank_is_unset(cls, v: object) -> object:
+        """`KEY=` in .env means "not set", not the current directory or an empty URL."""
+        return None if isinstance(v, str) and not v.strip() else v
 
     jwt_secret: SecretStr
     access_token_ttl_minutes: int = 15
