@@ -7,12 +7,16 @@ import {
 } from "@pids/api-client";
 import { create } from "zustand";
 
+import { accumulate, emptyTally, type BaselineTally } from "../lib/baseline";
+
 export const TRAIL_POINTS = 40;
 
 export interface LiveData {
   entities: Record<string, ThreatAssessment>;
   trails: Record<string, [number, number][]>;
   alerts: Record<string, Alert>;
+  /** What a naive geofence would have alarmed on vs what PIDS raised, this session. */
+  tally: BaselineTally;
   serverAt: string | null;
   receivedAt: number | null;
 }
@@ -21,6 +25,7 @@ export const emptyLive: LiveData = {
   entities: {},
   trails: {},
   alerts: {},
+  tally: emptyTally,
   serverAt: null,
   receivedAt: null,
 };
@@ -40,7 +45,8 @@ export function reduce(state: LiveData, msg: ServerMessage, now: number = Date.n
           -TRAIL_POINTS,
         );
       }
-      return { ...state, entities, trails, serverAt: msg.at, receivedAt: now };
+      const tally = accumulate(state.tally, msg.entities, msg.at);
+      return { ...state, entities, trails, tally, serverAt: msg.at, receivedAt: now };
     }
     case "alerts_snapshot": {
       const alerts: Record<string, Alert> = {};
@@ -83,6 +89,7 @@ interface LiveStore extends LiveData {
   selectAlert: (id: string | null) => void;
   selectEntity: (id: string | null) => void;
   toggleMute: () => void;
+  resetTally: () => void;
   reset: () => void;
 }
 
@@ -114,6 +121,9 @@ export const useLive = create<LiveStore>((set) => ({
   },
   toggleMute: () => {
     set((s) => ({ muted: !s.muted }));
+  },
+  resetTally: () => {
+    set({ tally: emptyTally });
   },
   reset: () => {
     set({ ...emptyLive, selectedAlertId: null, selectedEntityId: null });
