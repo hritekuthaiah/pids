@@ -1,6 +1,108 @@
 {
   "components": {
     "schemas": {
+      "ActionOut": {
+        "properties": {
+          "action": {
+            "title": "Action",
+            "type": "string"
+          },
+          "decided_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Decided At"
+          },
+          "decision": {
+            "anyOf": [
+              {
+                "enum": [
+                  "approved",
+                  "rejected"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Decision"
+          },
+          "priority": {
+            "enum": [
+              "now",
+              "soon",
+              "optional"
+            ],
+            "title": "Priority",
+            "type": "string"
+          },
+          "procedure_ref": {
+            "title": "Procedure Ref",
+            "type": "string"
+          },
+          "rationale": {
+            "title": "Rationale",
+            "type": "string"
+          }
+        },
+        "required": [
+          "action",
+          "priority",
+          "rationale",
+          "procedure_ref"
+        ],
+        "title": "ActionOut",
+        "type": "object"
+      },
+      "AgentStatusOut": {
+        "properties": {
+          "available": {
+            "title": "Available",
+            "type": "boolean"
+          },
+          "model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model"
+          },
+          "procedures_indexed": {
+            "title": "Procedures Indexed",
+            "type": "integer"
+          },
+          "provider": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Provider"
+          }
+        },
+        "required": [
+          "available",
+          "provider",
+          "model",
+          "procedures_indexed"
+        ],
+        "title": "AgentStatusOut",
+        "type": "object"
+      },
       "AlertDetailOut": {
         "properties": {
           "acknowledged_at": {
@@ -545,6 +647,35 @@
         "title": "ChannelContribution",
         "type": "object"
       },
+      "DecisionIn": {
+        "properties": {
+          "action_index": {
+            "minimum": 0.0,
+            "title": "Action Index",
+            "type": "integer"
+          },
+          "decision": {
+            "enum": [
+              "approved",
+              "rejected"
+            ],
+            "title": "Decision",
+            "type": "string"
+          },
+          "note": {
+            "default": "",
+            "maxLength": 500,
+            "title": "Note",
+            "type": "string"
+          }
+        },
+        "required": [
+          "action_index",
+          "decision"
+        ],
+        "title": "DecisionIn",
+        "type": "object"
+      },
       "EntityClass": {
         "enum": [
           "person",
@@ -716,6 +847,130 @@
           "token"
         ],
         "title": "PushTokenIn",
+        "type": "object"
+      },
+      "QueryAlertOut": {
+        "properties": {
+          "entity_class": {
+            "title": "Entity Class",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "level": {
+            "title": "Level",
+            "type": "string"
+          },
+          "opened_at": {
+            "format": "date-time",
+            "title": "Opened At",
+            "type": "string"
+          },
+          "reason": {
+            "title": "Reason",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "zone_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Zone Id"
+          }
+        },
+        "required": [
+          "id",
+          "level",
+          "zone_id",
+          "entity_class",
+          "status",
+          "opened_at",
+          "reason"
+        ],
+        "title": "QueryAlertOut",
+        "type": "object"
+      },
+      "QueryIn": {
+        "properties": {
+          "question": {
+            "maxLength": 500,
+            "minLength": 3,
+            "title": "Question",
+            "type": "string"
+          },
+          "site_id": {
+            "title": "Site Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "site_id",
+          "question"
+        ],
+        "title": "QueryIn",
+        "type": "object"
+      },
+      "QueryOut": {
+        "properties": {
+          "alerts": {
+            "items": {
+              "$ref": "#/components/schemas/QueryAlertOut"
+            },
+            "title": "Alerts",
+            "type": "array"
+          },
+          "answer": {
+            "title": "Answer",
+            "type": "string"
+          },
+          "count": {
+            "title": "Count",
+            "type": "integer"
+          },
+          "interpreted": {
+            "additionalProperties": true,
+            "description": "the filter the model chose \u2014 shown so a misreading is visible",
+            "title": "Interpreted",
+            "type": "object"
+          },
+          "latency_ms": {
+            "title": "Latency Ms",
+            "type": "integer"
+          },
+          "model": {
+            "title": "Model",
+            "type": "string"
+          },
+          "provider": {
+            "title": "Provider",
+            "type": "string"
+          },
+          "question": {
+            "title": "Question",
+            "type": "string"
+          }
+        },
+        "required": [
+          "question",
+          "interpreted",
+          "answer",
+          "count",
+          "alerts",
+          "provider",
+          "model",
+          "latency_ms"
+        ],
+        "title": "QueryOut",
         "type": "object"
       },
       "RefreshIn": {
@@ -1088,6 +1343,100 @@
         "title": "TokenOut",
         "type": "object"
       },
+      "TriageOut": {
+        "properties": {
+          "alert_id": {
+            "title": "Alert Id",
+            "type": "string"
+          },
+          "cited_procedures": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Cited Procedures",
+            "type": "array"
+          },
+          "confidence": {
+            "title": "Confidence",
+            "type": "number"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "incident_report": {
+            "title": "Incident Report",
+            "type": "string"
+          },
+          "latency_ms": {
+            "title": "Latency Ms",
+            "type": "integer"
+          },
+          "likely_cause": {
+            "title": "Likely Cause",
+            "type": "string"
+          },
+          "model": {
+            "title": "Model",
+            "type": "string"
+          },
+          "provider": {
+            "title": "Provider",
+            "type": "string"
+          },
+          "recommended_actions": {
+            "items": {
+              "$ref": "#/components/schemas/ActionOut"
+            },
+            "title": "Recommended Actions",
+            "type": "array"
+          },
+          "summary": {
+            "title": "Summary",
+            "type": "string"
+          },
+          "tool_calls": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Tool Calls",
+            "type": "array"
+          },
+          "verdict": {
+            "enum": [
+              "likely_intrusion",
+              "likely_benign",
+              "needs_verification"
+            ],
+            "title": "Verdict",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "alert_id",
+          "provider",
+          "model",
+          "created_at",
+          "latency_ms",
+          "summary",
+          "verdict",
+          "confidence",
+          "likely_cause",
+          "recommended_actions",
+          "cited_procedures",
+          "incident_report",
+          "tool_calls"
+        ],
+        "title": "TriageOut",
+        "type": "object"
+      },
       "UserOut": {
         "properties": {
           "email": {
@@ -1212,6 +1561,138 @@
   },
   "openapi": "3.1.0",
   "paths": {
+    "/api/v1/agent/query": {
+      "post": {
+        "description": "A question about past alerts, answered from the log (the model only picks filters).",
+        "operationId": "ask_log_api_v1_agent_query_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/QueryIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QueryOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Ask Log",
+        "tags": [
+          "agent"
+        ]
+      }
+    },
+    "/api/v1/agent/reports/{report_id}/decisions": {
+      "post": {
+        "description": "An operator approves or rejects one recommended action (human in the loop).",
+        "operationId": "decide_api_v1_agent_reports__report_id__decisions_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "report_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Report Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DecisionIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TriageOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Decide",
+        "tags": [
+          "agent"
+        ]
+      }
+    },
+    "/api/v1/agent/status": {
+      "get": {
+        "operationId": "agent_status_api_v1_agent_status_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentStatusOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Agent Status",
+        "tags": [
+          "agent"
+        ]
+      }
+    },
     "/api/v1/alerts": {
       "get": {
         "operationId": "list_alerts_api_v1_alerts_get",
@@ -1466,6 +1947,99 @@
         "summary": "Resolve",
         "tags": [
           "alerts"
+        ]
+      }
+    },
+    "/api/v1/alerts/{alert_id}/triage": {
+      "get": {
+        "operationId": "latest_triage_api_v1_alerts__alert_id__triage_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "alert_id",
+            "required": true,
+            "schema": {
+              "title": "Alert Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TriageOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Latest Triage",
+        "tags": [
+          "agent"
+        ]
+      },
+      "post": {
+        "description": "Ask the agent for a second opinion on one alert. Read-only; proposes actions.",
+        "operationId": "triage_alert_api_v1_alerts__alert_id__triage_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "alert_id",
+            "required": true,
+            "schema": {
+              "title": "Alert Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TriageOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Triage Alert",
+        "tags": [
+          "agent"
         ]
       }
     },

@@ -1,6 +1,7 @@
 """``pids-admin`` — operational commands.
 
 pids-admin seed --site config/sites/site-alpha.yaml
+    pids-admin index-procedures --dir config/sops
     Upsert the site, zones and tags, and create the demo accounts whose
     passwords are read from SEED_*_PASSWORD environment variables (generated
     into .env by `make env`). Passwords are never printed.
@@ -94,6 +95,18 @@ async def create_user(email: str, name: str, role: str, tag: str | None, passwor
     sys.stdout.write("created\n" if created else "already exists\n")
 
 
+async def index_procedures(folder: Path) -> None:
+    """(Re)build the agent's procedure index from the SOP markdown files."""
+    from pids_server.agent import procedures
+
+    db = Database(get_settings().database_url)
+    async with db.session() as s:
+        n = await procedures.index(s, folder)
+        await s.commit()
+    await db.dispose()
+    sys.stdout.write(f"indexed {n} procedure sections from {folder}\n")
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(prog="pids-admin", description=__doc__)
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -105,9 +118,13 @@ def main(argv: list[str] | None = None) -> int:
     u.add_argument("--role", choices=[r.value for r in m.Role], required=True)
     u.add_argument("--tag")
     u.add_argument("--password-env", required=True)
+    ip = sub.add_parser("index-procedures")
+    ip.add_argument("--dir", type=Path, default=Path("config/sops"))
     args = ap.parse_args(argv)
     if args.cmd == "seed":
         asyncio.run(seed(args.site))
+    elif args.cmd == "index-procedures":
+        asyncio.run(index_procedures(args.dir))
     else:
         asyncio.run(create_user(args.email, args.name, args.role, args.tag, args.password_env))
     return 0

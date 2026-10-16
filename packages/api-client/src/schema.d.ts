@@ -4,6 +4,63 @@
  */
 
 export interface paths {
+    "/api/v1/agent/query": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Ask Log
+         * @description A question about past alerts, answered from the log (the model only picks filters).
+         */
+        post: operations["ask_log_api_v1_agent_query_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/agent/reports/{report_id}/decisions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Decide
+         * @description An operator approves or rejects one recommended action (human in the loop).
+         */
+        post: operations["decide_api_v1_agent_reports__report_id__decisions_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/agent/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Agent Status */
+        get: operations["agent_status_api_v1_agent_status_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/alerts": {
         parameters: {
             query?: never;
@@ -66,6 +123,27 @@ export interface paths {
         put?: never;
         /** Resolve */
         post: operations["resolve_api_v1_alerts__alert_id__resolve_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/alerts/{alert_id}/triage": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Latest Triage */
+        get: operations["latest_triage_api_v1_alerts__alert_id__triage_get"];
+        put?: never;
+        /**
+         * Triage Alert
+         * @description Ask the agent for a second opinion on one alert. Read-only; proposes actions.
+         */
+        post: operations["triage_alert_api_v1_alerts__alert_id__triage_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -348,6 +426,35 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** ActionOut */
+        ActionOut: {
+            /** Action */
+            action: string;
+            /** Decided At */
+            decided_at?: string | null;
+            /** Decision */
+            decision?: ("approved" | "rejected") | null;
+            /**
+             * Priority
+             * @enum {string}
+             */
+            priority: "now" | "soon" | "optional";
+            /** Procedure Ref */
+            procedure_ref: string;
+            /** Rationale */
+            rationale: string;
+        };
+        /** AgentStatusOut */
+        AgentStatusOut: {
+            /** Available */
+            available: boolean;
+            /** Model */
+            model: string | null;
+            /** Procedures Indexed */
+            procedures_indexed: number;
+            /** Provider */
+            provider: string | null;
+        };
         /** AlertDetailOut */
         AlertDetailOut: {
             /** Acknowledged At */
@@ -537,6 +644,21 @@ export interface components {
              */
             value: number | null;
         };
+        /** DecisionIn */
+        DecisionIn: {
+            /** Action Index */
+            action_index: number;
+            /**
+             * Decision
+             * @enum {string}
+             */
+            decision: "approved" | "rejected";
+            /**
+             * Note
+             * @default
+             */
+            note: string;
+        };
         /**
          * EntityClass
          * @enum {string}
@@ -602,6 +724,57 @@ export interface components {
             platform: "android" | "ios" | "web";
             /** Token */
             token: string;
+        };
+        /** QueryAlertOut */
+        QueryAlertOut: {
+            /** Entity Class */
+            entity_class: string;
+            /** Id */
+            id: string;
+            /** Level */
+            level: string;
+            /**
+             * Opened At
+             * Format: date-time
+             */
+            opened_at: string;
+            /** Reason */
+            reason: string;
+            /** Status */
+            status: string;
+            /** Zone Id */
+            zone_id: string | null;
+        };
+        /** QueryIn */
+        QueryIn: {
+            /** Question */
+            question: string;
+            /** Site Id */
+            site_id: string;
+        };
+        /** QueryOut */
+        QueryOut: {
+            /** Alerts */
+            alerts: components["schemas"]["QueryAlertOut"][];
+            /** Answer */
+            answer: string;
+            /** Count */
+            count: number;
+            /**
+             * Interpreted
+             * @description the filter the model chose — shown so a misreading is visible
+             */
+            interpreted: {
+                [key: string]: unknown;
+            };
+            /** Latency Ms */
+            latency_ms: number;
+            /** Model */
+            model: string;
+            /** Provider */
+            provider: string;
+            /** Question */
+            question: string;
         };
         /** RefreshIn */
         RefreshIn: {
@@ -741,6 +914,46 @@ export interface components {
             token_type: string;
             user: components["schemas"]["UserOut"];
         };
+        /** TriageOut */
+        TriageOut: {
+            /** Alert Id */
+            alert_id: string;
+            /** Cited Procedures */
+            cited_procedures: string[];
+            /** Confidence */
+            confidence: number;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Incident Report */
+            incident_report: string;
+            /** Latency Ms */
+            latency_ms: number;
+            /** Likely Cause */
+            likely_cause: string;
+            /** Model */
+            model: string;
+            /** Provider */
+            provider: string;
+            /** Recommended Actions */
+            recommended_actions: components["schemas"]["ActionOut"][];
+            /** Summary */
+            summary: string;
+            /** Tool Calls */
+            tool_calls: string[];
+            /**
+             * Verdict
+             * @enum {string}
+             */
+            verdict: "likely_intrusion" | "likely_benign" | "needs_verification";
+        };
         /** UserOut */
         UserOut: {
             /** Email */
@@ -794,6 +1007,94 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    ask_log_api_v1_agent_query_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["QueryIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["QueryOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    decide_api_v1_agent_reports__report_id__decisions_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                report_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DecisionIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TriageOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    agent_status_api_v1_agent_status_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgentStatusOut"];
+                };
+            };
+        };
+    };
     list_alerts_api_v1_alerts_get: {
         parameters: {
             query?: {
@@ -912,6 +1213,68 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AlertOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    latest_triage_api_v1_alerts__alert_id__triage_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                alert_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TriageOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    triage_alert_api_v1_alerts__alert_id__triage_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                alert_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TriageOut"];
                 };
             };
             /** @description Validation Error */

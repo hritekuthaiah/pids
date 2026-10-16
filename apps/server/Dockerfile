@@ -24,13 +24,17 @@ COPY ml/src ml/src
 COPY apps/server apps/server
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --frozen --no-dev --no-editable --package pids-server
+# 3) the procedure-retrieval embedding model, baked in so the agent layer works air-gapped
+ENV FASTEMBED_CACHE_PATH=/app/models
+RUN /app/.venv/bin/python -c "from fastembed import TextEmbedding; TextEmbedding('BAAI/bge-small-en-v1.5')"
 
 
 FROM python:3.12-slim-trixie AS runtime
-ENV PATH="/app/.venv/bin:$PATH" PYTHONUNBUFFERED=1 PIDS_ENV=prod
+ENV PATH="/app/.venv/bin:$PATH" PYTHONUNBUFFERED=1 PIDS_ENV=prod FASTEMBED_CACHE_PATH=/app/models HF_HUB_OFFLINE=1
 RUN groupadd --system --gid 10001 pids && useradd --system --uid 10001 --gid 10001 --home /app pids
 WORKDIR /app
 COPY --from=build --chown=10001:10001 /app/.venv /app/.venv
+COPY --from=build --chown=10001:10001 /app/models /app/models
 COPY --chown=10001:10001 apps/server/alembic.ini apps/server/alembic.ini
 COPY --chown=10001:10001 apps/server/src/pids_server/db/migrations apps/server/src/pids_server/db/migrations
 COPY --chown=10001:10001 config config

@@ -57,6 +57,16 @@ class Settings(BaseSettings):
 
     expo_access_token: SecretStr | None = None
 
+    # LLM agent layer (ADR-0007). Claude primary; Ollama is the offline fallback.
+    llm_provider: Literal["anthropic", "ollama", "none"] = "anthropic"
+    anthropic_api_key: SecretStr | None = None
+    llm_model: str = "claude-opus-5-5"
+    llm_effort: Literal["low", "medium", "high", "xhigh", "max"] = "high"
+    ollama_base_url: str | None = None
+    ollama_model: str = "qwen3:4b"
+    agent_max_turns: int = 8
+    procedures_dir: Path = Field(default=Path("config/sops"), alias="PIDS_PROCEDURES_DIR")
+
     @property
     def database_url(self) -> str:
         pw = self.postgres_password.get_secret_value()
