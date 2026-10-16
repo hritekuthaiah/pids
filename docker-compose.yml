@@ -108,7 +108,8 @@ services:
     env_file: .env
     environment: *app-env
     ports:
-      - "127.0.0.1:${API_PORT:-8000}:8000"
+      # loopback by default; `make up-lan` exposes it so guard phones on the LAN can connect
+      - "${API_BIND:-127.0.0.1}:${API_PORT:-8000}:8000"
     depends_on: &app-deps
       migrate: { condition: service_completed_successfully }
       redis: { condition: service_healthy }

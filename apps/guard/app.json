@@ -1,0 +1,46 @@
+{
+  "expo": {
+    "name": "PIDS Guard",
+    "slug": "pids-guard",
+    "scheme": "pids-guard",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "dark",
+    "backgroundColor": "#0a0e0d",
+    "android": {
+      "package": "dev.pids.guard",
+      "adaptiveIcon": {
+        "backgroundColor": "#0a0e0d",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false,
+      "permissions": [
+        "ACCESS_COARSE_LOCATION",
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_BACKGROUND_LOCATION",
+        "FOREGROUND_SERVICE",
+        "FOREGROUND_SERVICE_LOCATION",
+        "POST_NOTIFICATIONS",
+        "VIBRATE"
+      ]
+    },
+    "plugins": [
+      "expo-router",
+      "expo-secure-store",
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "PIDS shares your position with the control room during your shift, so you are recognised as a guard and sent to alerts near you.",
+          "isAndroidBackgroundLocationEnabled": true,
+          "isAndroidForegroundServiceEnabled": true
+        }
+      ],
+      ["expo-notifications", { "color": "#ff3b3b" }],
+      ["expo-build-properties", { "android": { "usesCleartextTraffic": true } }]
+    ],
+    "experiments": { "typedRoutes": true }
+  }
+}

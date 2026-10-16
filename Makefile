@@ -46,6 +46,11 @@ up: ## Start infrastructure (Postgres/PostGIS, Redis, MQTT) and wait until healt
 up-all: ## Start infrastructure + containerised API, decision service and worker
 	$(COMPOSE) --profile app up -d --build --wait
 
+.PHONY: up-lan
+up-lan: ## Like up-all, but the API listens on the LAN for guard phones (demo network only)
+	API_BIND=0.0.0.0 $(COMPOSE) --profile app up -d --build --wait
+	@echo "guard app server address: $$(ipconfig getifaddr en0 2>/dev/null || hostname -I | cut -d' ' -f1):$${API_PORT:-8000}"
+
 .PHONY: dev-api
 dev-api: ## Run the API natively with reload-free uvicorn (uses .env)
 	set -a && . ./.env && set +a && $(UV) pids-api

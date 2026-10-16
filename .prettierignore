@@ -6,3 +6,7 @@ packages/api-client/openapi.json
 packages/api-client/src/schema.d.ts
 **/*.md
 .venv
+apps/guard/android
+apps/guard/ios
+apps/guard/.expo
+apps/guard/assets
