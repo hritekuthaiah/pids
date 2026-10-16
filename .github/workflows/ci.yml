@@ -39,6 +39,39 @@ jobs:
           path: coverage.xml
           if-no-files-found: ignore
 
+  typescript:
+    name: TypeScript — format, types, lint, tests, build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          cache: pnpm
+      - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
+        with:
+          enable-cache: true
+      - name: Install
+        run: pnpm install --frozen-lockfile
+      - name: Generated API types match the server
+        run: |
+          uv sync --all-packages --frozen
+          pnpm gen:api
+          git diff --exit-code -- packages/api-client \
+            || { echo "::error::API types are stale — run 'pnpm gen:api' and commit"; exit 1; }
+      - name: Format
+        run: pnpm format:check
+      - name: Type-check
+        run: pnpm typecheck
+      - name: Lint
+        run: pnpm lint
+      - name: Test
+        run: pnpm test
+      - name: Build
+        run: pnpm build
+
   infra-lint:
     name: Infra — workflows, Dockerfiles, shell
     runs-on: ubuntu-24.04
