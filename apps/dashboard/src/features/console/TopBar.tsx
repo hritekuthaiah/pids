@@ -38,17 +38,22 @@ export function TopBar({ siteName, timezone }: { siteName: string; timezone: str
         ? { text: "NO DATA", tone: "var(--color-elevated)" }
         : { text: status.toUpperCase(), tone: "var(--color-critical)" };
 
+  // Only the site name gives way when space runs short (it truncates; the tooltip has
+  // it in full), so no control ever wraps. Below 2xl the gaps tighten and the UTC
+  // clock and posture caption drop out: that is what fits a 1280 px projector.
   return (
-    <header className="hud flex h-14 shrink-0 items-center gap-6 px-4">
-      <div className="flex items-baseline gap-3">
-        <span className="font-display text-2xl font-bold tracking-[0.24em]">PIDS</span>
-        <span className="hidden flex-col leading-tight xl:flex">
-          <span className="hud-title text-[9px]">Control room</span>
-          <span className="text-[12px] text-fg-muted">{siteName}</span>
+    <header className="hud flex h-14 shrink-0 items-center gap-4 px-4 2xl:gap-6">
+      <div className="flex min-w-0 items-baseline gap-3">
+        <span className="shrink-0 font-display text-2xl font-bold tracking-[0.24em]">PIDS</span>
+        <span className="hidden min-w-0 flex-col leading-tight xl:flex">
+          <span className="hud-title truncate text-[9px]">Control room</span>
+          <span className="max-w-72 truncate text-[12px] text-fg-muted" title={siteName}>
+            {siteName}
+          </span>
         </span>
       </div>
 
-      <nav className="flex gap-1" aria-label="Sections">
+      <nav className="flex shrink-0 gap-1" aria-label="Sections">
         {[
           ["/", "Console"],
           ["/alerts", "Alert log"],
@@ -67,8 +72,8 @@ export function TopBar({ siteName, timezone }: { siteName: string; timezone: str
         ))}
       </nav>
 
-      <div className="flex items-center gap-3" aria-label="Threat posture">
-        <span className="hud-title">Posture</span>
+      <div className="flex shrink-0 items-center gap-3" aria-label="Threat posture">
+        <span className="hud-title hidden 2xl:inline">Posture</span>
         <span
           className="font-display text-sm font-bold tracking-[0.2em] uppercase"
           style={{ color: LEVEL_COLOR[posture] }}
@@ -93,13 +98,13 @@ export function TopBar({ siteName, timezone }: { siteName: string; timezone: str
         </div>
       </div>
 
-      <div className="ml-auto flex items-center gap-5">
+      <div className="ml-auto flex shrink-0 items-center gap-4 whitespace-nowrap 2xl:gap-5">
         <div className="flex gap-4 font-mono text-[13px]">
           <span>
             <span className="mr-1.5 text-[9px] text-fg-dim">LOCAL</span>
             {clock(new Date(now), timezone)}
           </span>
-          <span className="text-fg-muted">
+          <span className="hidden text-fg-muted 2xl:inline">
             <span className="mr-1.5 text-[9px] text-fg-dim">UTC</span>
             {clock(new Date(now), "UTC")}
           </span>
@@ -120,7 +125,9 @@ export function TopBar({ siteName, timezone }: { siteName: string; timezone: str
         </button>
         <div className="flex items-center gap-2">
           <span className="flex flex-col items-end leading-tight">
-            <span className="text-[12px]">{session?.user.name}</span>
+            <span className="max-w-36 truncate text-[12px]" title={session?.user.name}>
+              {session?.user.name}
+            </span>
             <span className="hud-title text-[9px]">{session?.user.role}</span>
           </span>
           <button type="button" className="btn-ghost" onClick={() => void pids.logout()}>
