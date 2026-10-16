@@ -39,9 +39,10 @@ rather than silently deviating.
 | `apps/server` (`pids_server`) | `pids-api` (FastAPI + WS), `pids-decision` (MQTT → engine), `pids-worker` (notifications), `pids-admin` |
 | `packages/api-client` | Generated TS types (`openapi.json` → `schema.d.ts`) + typed client + live WS helper |
 | `apps/dashboard` | React 19 + MapLibre control-room console |
-| `apps/edge` | *(M4, next)* camera → YOLO (ONNX) → ByteTrack → ground plane → MQTT |
+| `apps/edge` (`pids_edge`) | Camera edge node: YOLO26n (ONNX Runtime) → ByteTrack → floor homography → MQTT, calibration tool, loopback MJPEG preview (ADR-0011) |
 | `apps/guard` | *(M5)* Expo Android guard app |
-| `config/sites/site-alpha.yaml` | Site geometry in local metres (single source of truth) |
+| `config/sites/*.yaml` | Site geometry in local metres (single source of truth): `site-alpha` (simulated depot), `demo-room` (live demo) |
+| `config/edge/` | Per-node edge config, floor marks and calibration |
 
 ## Commands
 
@@ -55,6 +56,9 @@ make test-int         # integration tests on the running stack (isolated pids_te
 pnpm typecheck && pnpm lint && pnpm test && pnpm format:check   # TypeScript workspace
 pnpm gen:api          # after any API/schema change — CI fails on stale types
 make train            # behaviour model + decision model (~2 min)
+make edge-model       # export YOLO26n to ONNX (isolated uvx env; PyTorch never enters the workspace)
+make edge             # camera edge node against the stack; preview http://127.0.0.1:8090/stream.mjpg
+PIDS_SITE_CONFIG=config/sites/demo-room.yaml make up-all   # make the demo room the live site
 ```
 
 Demo logins are the `SEED_*` passwords in `.env` (never print them).
@@ -63,14 +67,16 @@ Demo logins are the `SEED_*` passwords in `.env` (never print them).
 
 - **Merged:** M0 foundation, M1 decision core + simulator + calibrated fusion
   (held-out: Pd 98.6 %, −82 % nuisance alarms vs naive line-crossing), M2 server
-  platform, M3 dashboard. Open milestones: M4 edge, M5 guard app, M6 evaluation,
-  M7 agent layer, M8 demo hardening.
+  platform, M3 dashboard, M4 camera pipeline (YOLO26n ~17 ms/frame on the laptop CPU,
+  capture -> decision ~170 ms). Open: rest of M4 (GPS NMEA driver, BLE badge scanner,
+  per-class detector eval #22, benchmarks #26), M5 guard app, M6 evaluation, M7 agent
+  layer, M8 demo hardening.
 - **Hardware in hand:** USB camera (plus the MacBook's built-in one), a GPS module (model
   and adapter still to be identified), Android phone(s). No Pi, thermal or RFID.
 - **Whitelist decision (16 Oct):** *phones act as BLE badges* — authorised people's
   phones broadcast passively; scanners (the Mac's Bluetooth to start) hear them; identity
   is linked to camera tracks by position and RSSI-vs-motion correlation, with rolling IDs
-  against replay. No purchase for now; ESP32 badges are the upgrade path. Write ADR-0011
+  against replay. No purchase for now; ESP32 badges are the upgrade path. Write ADR-0012
   with the implementation. RFID tap-reads stay supported in code but are **not** used in
   the demo (tapping is not autonomous).
 - **Demo plan:** live, not simulated — a room as the compound (camera high in a corner,
@@ -104,5 +110,11 @@ Demo logins are the `SEED_*` passwords in `.env` (never print them).
   breaks otherwise and GeoJSON layers silently vanish); size its container explicitly
   (its CSS forces `position: relative`). Basemaps must be keyless — CARTO now needs a key.
 - Docker on macOS cannot reach USB cameras or serial GPS: the edge node runs natively
-  on the demo laptop (ADR-0006).
+  on the demo laptop (ADR-0006). macOS asks camera permission for the *app* running the
+  command (Terminal or Claude); until granted, OpenCV reports "not authorized".
+- Export YOLO26 with `end2end=True`: the default ONNX export keeps the NMS-needing
+  one-to-many head and is slower.
+- The decision engine's constants (stitch gate, forecast horizon) were tuned at
+  outdoor scale; check them at room scale before the demo.
+- In non-interactive shells pnpm is not on PATH: use `mise exec -- pnpm ...`.
 - The dashboard alarm is audible in the browser pane — silence it when testing.
