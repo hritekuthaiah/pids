@@ -40,7 +40,7 @@ from pids_server.decision.recorder import record_event, record_observations
 from pids_server.logs import configure, log
 from pids_server.schemas import AlertMessage, AlertOut, LiveMessage
 from pids_server.settings import Settings, get_settings
-from pids_server.site_store import load_site_config, site_ids
+from pids_server.site_store import active_site_id, load_site_config, site_ids
 
 _STREAMS = ("tracks", "gps", "sensors")
 _TRACE_HOPS = [("captured", "received"), ("received", "decided"), ("captured", "decided")]
@@ -235,13 +235,15 @@ async def amain() -> None:
     settings = get_settings()
     configure(settings.log_level, json=settings.env == "prod")
     db = Database(settings.database_url)
+    wanted = active_site_id(settings.site_config)
     while True:
         async with db.session() as session:
             ids = await site_ids(session)
-            if ids:
-                cfg = await load_site_config(session, ids[0])
+            chosen = wanted if wanted in ids else (ids[0] if ids and wanted is None else None)
+            if chosen is not None:
+                cfg = await load_site_config(session, chosen)
                 break
-        log.warning("no site seeded yet; waiting (run `make seed`)")
+        log.warning("site not seeded yet; waiting (run `make seed`)", site=wanted)
         await asyncio.sleep(5)
     await db.dispose()
     model = DecisionModel.load(settings.decision_model)

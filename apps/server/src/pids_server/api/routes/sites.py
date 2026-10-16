@@ -13,10 +13,10 @@ from pids_core.geo import Enu
 from pids_core.site import Site as CoreSite
 from pids_core.site import SiteConfig
 from pids_server import bus
-from pids_server.api.deps import Admin, AnyUser, RedisDep, SessionDep, audit
+from pids_server.api.deps import Admin, AnyUser, RedisDep, SessionDep, SettingsDep, audit
 from pids_server.db import models as m
 from pids_server.schemas import LiveMessage
-from pids_server.site_store import load_site_config
+from pids_server.site_store import active_site_id, load_site_config
 
 router = APIRouter(prefix="/sites", tags=["sites"])
 
@@ -109,8 +109,11 @@ def site_geojson(cfg: SiteConfig) -> dict[str, Any]:
 
 
 @router.get("", response_model=list[SiteSummary])
-async def list_sites(_: AnyUser, session: SessionDep) -> list[SiteSummary]:
-    rows = (await session.scalars(select(m.Site))).all()
+async def list_sites(_: AnyUser, session: SessionDep, settings: SettingsDep) -> list[SiteSummary]:
+    """All seeded sites, the live one (``PIDS_SITE_CONFIG``) first."""
+    live = active_site_id(settings.site_config)
+    rows = (await session.scalars(select(m.Site).order_by(m.Site.id))).all()
+    rows = sorted(rows, key=lambda r: r.id != live)
     return [SiteSummary(id=r.id, name=r.name) for r in rows]
 
 

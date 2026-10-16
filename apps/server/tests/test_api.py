@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 from datetime import UTC, datetime
+from pathlib import Path
 
 import aiomqtt
 import pytest
@@ -19,12 +20,16 @@ from pids_core.contracts import (
     ThreatLevel,
     ZoneKind,
 )
+from pids_core.site import SiteConfig
 from pids_server.db.session import Database
 from pids_server.decision.recorder import record_event
 from pids_server.settings import Settings
+from pids_server.site_store import active_site_id, upsert_site
 from server_helpers import PASSWORD, bearer, login
 
 pytestmark = pytest.mark.integration
+
+DEMO_ROOM = Path(__file__).resolve().parents[3] / "config/sites/demo-room.yaml"
 
 
 def _event(
@@ -121,6 +126,19 @@ async def test_site_geojson(client: AsyncClient) -> None:
     ring = zone["geometry"]["coordinates"][0]
     assert ring[0] == ring[-1]
     assert all(77.0 < lon < 78.0 and 13.0 < lat < 14.0 for lon, lat in ring)
+
+
+async def test_the_live_site_is_listed_first(
+    client: AsyncClient, db: Database, settings: Settings
+) -> None:
+    async with db.session() as s:
+        await upsert_site(s, SiteConfig.from_yaml(DEMO_ROOM))
+        await s.commit()
+    tokens = await login(client, "operator@test.local")
+    ids = [x["id"] for x in (await client.get("/api/v1/sites", headers=bearer(tokens))).json()]
+    live = active_site_id(settings.site_config)
+    assert sorted(ids) == ["demo-room", "site-alpha"]
+    assert ids[0] == live  # the console opens on the site with a decision service
 
 
 async def test_only_admin_can_revoke_tags(client: AsyncClient) -> None:
