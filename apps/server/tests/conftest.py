@@ -118,4 +118,8 @@ async def client(settings: Settings, db: Database) -> AsyncIterator[AsyncClient]
         AsyncClient(transport=ASGITransport(app=manager.app), base_url="http://test") as c,
     ):
         await app.state.redis.delete("pids:rl:login:127.0.0.1")
+        # Phone-camera offers are keyed by user id and live until their TTL, and every run
+        # recreates the users: clear the last run's, or a rerun sees them as extra cameras.
+        async for key in app.state.redis.scan_iter(match="pids:*:camera:*", count=100):
+            await app.state.redis.delete(key)
         yield c

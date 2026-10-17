@@ -290,7 +290,10 @@ export function MapView({ site, canEdit = false }: { site: SiteGeo; canEdit?: bo
   const [loaded, setLoaded] = useState<MapLibreMap | null>(null);
   const [editing, setEditing] = useState(false);
   const selectEntity = useLive((s) => s.selectEntity);
-  const editor = useZoneEditor(loaded, editing, () => draftsFrom(site.geojson));
+  const editor = useZoneEditor(loaded, editing, () => ({
+    drafts: draftsFrom(site.geojson),
+    origin: { lat: site.center[1], lon: site.center[0] },
+  }));
   const save = useSaveZones(site.id);
 
   // ---- map lifecycle
@@ -472,7 +475,7 @@ export function MapView({ site, canEdit = false }: { site: SiteGeo; canEdit?: bo
       {/* MapLibre forces position:relative on its container, so size it explicitly */}
       <div ref={container} className="h-full w-full" aria-label="Live site map" />
       <div
-        className={clsx("absolute z-10 flex gap-1.5", editing ? "left-[19.5rem]" : "left-3")}
+        className={clsx("absolute z-10 flex gap-1.5", editing ? "left-[21.5rem]" : "left-3")}
         style={BELOW_BANNER}
       >
         {(["dark", "streets", "satellite"] as const).map((b) => (
@@ -521,9 +524,21 @@ export function MapView({ site, canEdit = false }: { site: SiteGeo; canEdit?: bo
           onKind={editor.setKind}
           onRemove={editor.remove}
           onPlace={editor.place}
+          onOrigin={editor.setOrigin}
+          onCarry={editor.setCarry}
+          onCorner={editor.setCorner}
+          onAddCorner={editor.addCorner}
+          onRemoveCorner={editor.removeCorner}
+          onAddZone={editor.addZone}
           onCancel={() => {
             save.reset();
             setEditing(false);
+            // a relocation preview may have carried the camera away from the real site
+            mapRef.current?.fitBounds(bounds(site.geojson), {
+              padding: 48,
+              duration: 600,
+              maxZoom: 21,
+            });
           }}
           onSave={() => {
             save.mutate(toPayload(editor.state, editor.state.origin ?? undefined), {

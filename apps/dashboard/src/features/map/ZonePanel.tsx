@@ -1,4 +1,13 @@
-import { KIND_LABEL, areaM2, type Draft, type EditorState, type ZoneKind } from "./editor";
+import { CoordinateImport, CornerTable, LocationSection } from "./CoordinatePanels";
+import {
+  KIND_LABEL,
+  areaM2,
+  effectiveOrigin,
+  type Draft,
+  type EditorState,
+  type LngLat,
+  type ZoneKind,
+} from "./editor";
 
 const KINDS: ZoneKind[] = ["warning", "critical", "containment"];
 const TONE: Record<ZoneKind, string> = {
@@ -18,6 +27,12 @@ export function ZonePanel({
   onSave,
   onCancel,
   onPlace,
+  onOrigin,
+  onCarry,
+  onCorner,
+  onAddCorner,
+  onRemoveCorner,
+  onAddZone,
   saving,
   error,
 }: {
@@ -30,19 +45,39 @@ export function ZonePanel({
   onSave: () => void;
   onCancel: () => void;
   onPlace: () => void;
+  onOrigin: (lat: number, lon: number) => void;
+  onCarry: (on: boolean) => void;
+  onCorner: (id: string, index: number, lat: number, lon: number) => void;
+  onAddCorner: (id: string, after: number) => void;
+  onRemoveCorner: (id: string, index: number) => void;
+  onAddZone: (kind: ZoneKind, ring: LngLat[]) => void;
   saving: boolean;
   error: string | null;
 }) {
   const drawing = state.drawing !== null;
+  const selected = state.drafts.find((d) => d.id === state.selected);
   return (
     <div
-      className="hud absolute left-3 z-10 flex w-72 flex-col gap-2 bg-ink-900/95 p-3"
-      style={{ top: "calc(var(--pids-banner-h, 0px) + 0.75rem)" }}
+      className="hud absolute left-3 z-10 flex w-80 flex-col gap-2.5 overflow-y-auto bg-ink-900/95 p-3"
+      style={{
+        top: "calc(var(--pids-banner-h, 0px) + 0.75rem)",
+        maxHeight: "calc(100% - var(--pids-banner-h, 0px) - 1.5rem)",
+      }}
     >
       <div className="flex items-center justify-between">
         <span className="hud-title">Edit zones</span>
         <span className="font-mono text-[10px] text-fg-dim">{state.drafts.length} zones</span>
       </div>
+
+      <LocationSection
+        origin={effectiveOrigin(state)}
+        moved={state.origin !== null}
+        carry={state.carry}
+        placing={state.placing}
+        onOrigin={onOrigin}
+        onCarry={onCarry}
+        onPlace={onPlace}
+      />
 
       {drawing ? (
         <p className="text-[11.5px] text-fg-muted">
@@ -85,18 +120,17 @@ export function ZonePanel({
         ))}
       </ul>
 
-      <button
-        type="button"
-        className="btn-ghost"
-        onClick={onPlace}
-        title="Move the whole site to a point you click: zones keep their position on the ground"
-      >
-        {state.placing
-          ? "Click the map to set the origin"
-          : state.origin
-            ? "Origin moved (saves with the zones)"
-            : "Move site origin"}
-      </button>
+      {selected && (
+        <CornerTable
+          // a fresh table per zone, so the boxes never carry one zone's text into another
+          key={selected.id}
+          draft={selected}
+          onCorner={onCorner}
+          onAdd={onAddCorner}
+          onRemove={onRemoveCorner}
+        />
+      )}
+      <CoordinateImport onAdd={onAddZone} />
 
       {error !== null && <p className="text-[11.5px] text-[var(--color-critical)]">{error}</p>}
       <div className="flex gap-2">
@@ -114,7 +148,9 @@ export function ZonePanel({
       </div>
       <p className="text-[10.5px] text-fg-dim">
         Saving takes effect immediately: the decision engine judges live tracks against the new
-        zones.
+        zones. The edit lives in the running system only until you export it —{" "}
+        <code className="font-mono">make site-export</code> keeps it across restarts and gives the
+        camera node the same origin.
       </p>
     </div>
   );

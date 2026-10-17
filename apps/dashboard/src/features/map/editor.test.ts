@@ -145,4 +145,130 @@ describe("zone editor", () => {
     expect(areaM2(SQUARE)).toBeLessThan(140);
     expect(areaM2(SQUARE.slice(0, 2))).toBe(0);
   });
+
+  describe("relocating the site", () => {
+    const OLD = { lat: 13.262, lon: 77.42 };
+    const NEW: LngLat = [77.5, 13.1];
+    const loaded = (): EditorState =>
+      initial([{ id: "room", name: "Room", kind: "critical", ring: SQUARE }], OLD);
+
+    it("carries the zones to the new origin and keeps their size", () => {
+      const before = areaM2(SQUARE);
+      const s = run([{ t: "origin", at: NEW }], loaded());
+      const ring = at(s.drafts, 0).ring;
+      expect(at(ring, 0)[0]).toBeCloseTo(NEW[0], 9); // the first corner sat on the old origin
+      expect(at(ring, 0)[1]).toBeCloseTo(NEW[1], 9);
+      expect(areaM2(ring)).toBeCloseTo(before, 0);
+      expect(s.origin).toEqual({ lat: 13.1, lon: 77.5 });
+      expect(s.dirty).toBe(true);
+    });
+
+    it("measures a second move from where the first one put the site", () => {
+      const s = run(
+        [
+          { t: "origin", at: NEW },
+          { t: "origin", at: [OLD.lon, OLD.lat] },
+        ],
+        loaded(),
+      );
+      for (const [i, p] of SQUARE.entries()) {
+        expect(at(at(s.drafts, 0).ring, i)[0]).toBeCloseTo(p[0], 7);
+        expect(at(at(s.drafts, 0).ring, i)[1]).toBeCloseTo(p[1], 7);
+      }
+    });
+
+    it("leaves the zones on the ground when only the frame is re-anchored", () => {
+      const s = run(
+        [
+          { t: "carry", on: false },
+          { t: "origin", at: NEW },
+        ],
+        loaded(),
+      );
+      expect(at(s.drafts, 0).ring).toEqual(SQUARE);
+      expect(s.origin).toEqual({ lat: 13.1, lon: 77.5 });
+    });
+
+    it("tells the server to relocate only for a carried move", () => {
+      const moved = run([{ t: "origin", at: NEW }], loaded());
+      expect(toPayload(moved, moved.origin ?? undefined)).toMatchObject({
+        origin: { lat: 13.1, lon: 77.5 },
+        relocate: true,
+      });
+      const reframed = run(
+        [
+          { t: "carry", on: false },
+          { t: "origin", at: NEW },
+        ],
+        loaded(),
+      );
+      expect(toPayload(reframed, reframed.origin ?? undefined).relocate).toBe(false);
+      expect(toPayload(loaded()).relocate).toBe(false); // zones edited, site not moved
+      expect("origin" in toPayload(loaded())).toBe(false);
+    });
+
+    it("does not guess a relocation when the stored origin is unknown", () => {
+      const s = run([{ t: "origin", at: NEW }], initial([]));
+      expect(toPayload(s, s.origin ?? undefined).relocate).toBe(false);
+    });
+
+    it("abandons a half-drawn zone, which would otherwise be left behind", () => {
+      const s = run(
+        [
+          { t: "draw", kind: "warning" },
+          { t: "vertex", at: at(SQUARE, 0) },
+          { t: "origin", at: NEW },
+        ],
+        loaded(),
+      );
+      expect(s.drawing).toBeNull();
+    });
+  });
+
+  describe("typed coordinates", () => {
+    it("moves one corner of any zone, selected or not", () => {
+      const start = run(drawSquare("critical"));
+      const s = run(
+        [
+          { t: "select", id: null },
+          { t: "setVertex", id: "critical-core-1", index: 1, at: [77.43, 13.27] },
+        ],
+        start,
+      );
+      expect(at(at(s.drafts, 0).ring, 1)).toEqual([77.43, 13.27]);
+      expect(at(s.drafts, 0).ring).toHaveLength(4);
+    });
+
+    it("adds a corner halfway to the next, wrapping round at the last one", () => {
+      const start = run(drawSquare());
+      const mid = run([{ t: "insertVertex", id: "warning-band-1", index: 0 }], start);
+      expect(at(mid.drafts, 0).ring).toHaveLength(5);
+      expect(at(at(mid.drafts, 0).ring, 1)[0]).toBeCloseTo(77.42005, 9);
+      const wrap = run([{ t: "insertVertex", id: "warning-band-1", index: 3 }], start);
+      expect(at(at(wrap.drafts, 0).ring, 4)).toEqual([77.42, 13.26205]);
+    });
+
+    it("keeps three corners when asked to remove one more", () => {
+      const tri: LngLat[] = SQUARE.slice(0, 3);
+      const s = run([
+        { t: "addZone", kind: "warning", ring: tri },
+        { t: "deleteVertex", index: 0 },
+      ]);
+      expect(at(s.drafts, 0).ring).toHaveLength(3);
+    });
+
+    it("adds a pasted zone, named and selected like a drawn one", () => {
+      const s = run([{ t: "addZone", kind: "critical", ring: SQUARE }]);
+      expect(at(s.drafts, 0)).toMatchObject({
+        id: "critical-core-1",
+        kind: "critical",
+        ring: SQUARE,
+      });
+      expect(s.selected).toBe("critical-core-1");
+      expect(s.dirty).toBe(true);
+      expect(
+        run([{ t: "addZone", kind: "critical", ring: SQUARE.slice(0, 2) }]).drafts,
+      ).toHaveLength(0);
+    });
+  });
 });

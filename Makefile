@@ -72,6 +72,18 @@ demo: ## Live demo: demo-room site, API + TLS broker on the LAN, production cons
 	  echo "guard app    server address $$ip:$${API_PORT:-8000}"; \
 	  echo "next         make edge (camera, separate terminal) · make obs (Grafana) · docs/demo/script.md"
 
+.PHONY: site-export
+site-export: ## Keep what you drew in the console: write the live site to its YAML (SITE=<id> for another); edge nodes read that file
+	@set -a && . ./.env && set +a; \
+	  live=$${PIDS_SITE_CONFIG:-config/sites/site-alpha.yaml}; \
+	  file=$(if $(SITE),config/sites/$(SITE).yaml,$$live); \
+	  id=$(if $(SITE),$(SITE),$$(sed -n 's/^ *id: *\([a-z0-9-]*\).*/\1/p' "$$live" | head -1)); \
+	  tmp=$$(mktemp); \
+	  $(COMPOSE) exec -T api pids-admin export-site --site "$$id" > "$$tmp" || { rm -f "$$tmp"; exit 1; }; \
+	  cp "$$file" "$$file.bak"; cat "$$tmp" > "$$file"; rm -f "$$tmp"; \
+	  echo "wrote $$file (the previous copy is $$file.bak)"; \
+	  echo "next: restart the edge node (make edge) so the camera uses the same origin"
+
 .PHONY: demo-reset
 demo-reset: ## Clear the demo room's alerts and history between rehearsals (keeps users, zones, tags)
 	$(COMPOSE) exec -T api pids-admin reset-site --site demo-room

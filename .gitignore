@@ -61,3 +61,6 @@ ml/reports/out/
 
 # --- edge node ----------------------------------------------------------------
 /markers/
+
+# `make site-export` keeps the previous copy beside the new one
+config/sites/*.bak
