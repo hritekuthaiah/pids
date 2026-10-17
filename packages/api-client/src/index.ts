@@ -22,10 +22,11 @@ export type AlertStatus = Schemas["AlertStatus"];
 export type LiveMessage = Schemas["LiveMessage"];
 export type AlertMessage = Schemas["AlertMessage"];
 export type AlertsSnapshotMessage = Schemas["AlertsSnapshotMessage"];
+export type SiteChangedMessage = Schemas["SiteChangedMessage"];
 export type TokenOut = Schemas["TokenOut"];
 export type User = Schemas["UserOut"];
 export type Tag = Schemas["TagOut"];
-export type ServerMessage = LiveMessage | AlertMessage | AlertsSnapshotMessage;
+export type ServerMessage = LiveMessage | AlertMessage | AlertsSnapshotMessage | SiteChangedMessage;
 
 export const LEVELS: readonly ThreatLevel[] = ["nominal", "elevated", "warning", "critical"];
 export const levelRank = (l: ThreatLevel | string): number => LEVELS.indexOf(l as ThreatLevel);

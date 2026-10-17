@@ -16,11 +16,18 @@ import { useEffect, useRef, useState } from "react";
 import { LEVEL_HEX } from "../../lib/format";
 import type { SiteGeo } from "../../lib/hooks";
 import { useLive } from "../../state/live";
+import { draftsFrom, toPayload } from "./editor";
 import { bounds, headingDeg, lerp, predictedBreachPoint } from "./geo";
+import { useSaveZones } from "./saveZones";
+import { useZoneEditor } from "./useZoneEditor";
+import { ZonePanel } from "./ZonePanel";
 import { createEntityMarker, updateEntityMarker, type EntityMarker } from "./marker";
 
-type Basemap = "dark" | "satellite";
+type Basemap = "dark" | "streets" | "satellite";
 const TWEEN_MS = 520;
+
+/** Overlays start below the critical banner, which publishes its own height. */
+const BELOW_BANNER = { top: "calc(var(--pids-banner-h, 0px) + 0.75rem)" } as const;
 
 const STYLE: StyleSpecification = {
   version: 8,
@@ -35,12 +42,23 @@ const STYLE: StyleSpecification = {
       maxzoom: 16,
       attribution: "Esri, HERE, Garmin, © OpenStreetMap contributors",
     },
+    streets: {
+      type: "raster",
+      tiles: [
+        "https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}",
+      ],
+      tileSize: 256,
+      maxzoom: 19,
+      attribution: "Esri, HERE, Garmin, © OpenStreetMap contributors",
+    },
     satellite: {
       type: "raster",
       tiles: [
         "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
       ],
       tileSize: 256,
+      // Imagery stops around z19; MapLibre over-scales the last tile above that, which
+      // is what a room-sized site needs (8 m across is zoom 21-22).
       maxzoom: 19,
       attribution: "Imagery © Esri, Maxar, Earthstar Geographics",
     },
@@ -48,6 +66,13 @@ const STYLE: StyleSpecification = {
   layers: [
     { id: "bg", type: "background", paint: { "background-color": "#040605" } },
     { id: "dark", type: "raster", source: "dark", paint: { "raster-opacity": 0.85 } },
+    {
+      id: "streets",
+      type: "raster",
+      source: "streets",
+      layout: { visibility: "none" },
+      paint: { "raster-opacity": 0.75, "raster-saturation": -0.3, "raster-brightness-max": 0.75 },
+    },
     {
       id: "satellite",
       type: "raster",
@@ -240,13 +265,17 @@ function zoneLabels(map: MapLibreMap, site: SiteGeo): Marker[] {
     });
 }
 
-export function MapView({ site }: { site: SiteGeo }) {
+export function MapView({ site, canEdit = false }: { site: SiteGeo; canEdit?: boolean }) {
   const container = useRef<HTMLDivElement>(null);
   const mapRef = useRef<MapLibreMap | null>(null);
   const [basemap, setBasemap] = useState<Basemap>("dark");
   const [showCoverage, setShowCoverage] = useState(true);
   const [ready, setReady] = useState(false);
+  const [loaded, setLoaded] = useState<MapLibreMap | null>(null);
+  const [editing, setEditing] = useState(false);
   const selectEntity = useLive((s) => s.selectEntity);
+  const editor = useZoneEditor(loaded, editing, () => draftsFrom(site.geojson));
+  const save = useSaveZones(site.id);
 
   // ---- map lifecycle
   useEffect(() => {
@@ -258,6 +287,7 @@ export function MapView({ site }: { site: SiteGeo }) {
       zoom: 16,
       dragRotate: false,
       pitchWithRotate: false,
+      maxZoom: 23,
       attributionControl: { compact: true },
     });
     map.addControl(new NavigationControl({ showCompass: false }), "top-right");
@@ -267,8 +297,9 @@ export function MapView({ site }: { site: SiteGeo }) {
       addSiteLayers(map, site);
       labels = zoneLabels(map, site);
       map.resize();
-      map.fitBounds(bounds(site.geojson), { padding: 48, duration: 0 });
+      map.fitBounds(bounds(site.geojson), { padding: 48, duration: 0, maxZoom: 21 });
       setReady(true);
+      setLoaded(map);
     });
     // Panels and the breach banner change the available space; keep the canvas in step.
     const observer = new ResizeObserver(() => {
@@ -282,6 +313,7 @@ export function MapView({ site }: { site: SiteGeo }) {
       map.remove();
       mapRef.current = null;
       setReady(false);
+      setLoaded(null);
     };
   }, [site]);
 
@@ -289,8 +321,9 @@ export function MapView({ site }: { site: SiteGeo }) {
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !ready) return;
-    map.setLayoutProperty("dark", "visibility", basemap === "dark" ? "visible" : "none");
-    map.setLayoutProperty("satellite", "visibility", basemap === "satellite" ? "visible" : "none");
+    for (const b of ["dark", "streets", "satellite"] as const) {
+      map.setLayoutProperty(b, "visibility", basemap === b ? "visible" : "none");
+    }
     for (const id of ["coverage-fill", "coverage-line"]) {
       map.setLayoutProperty(id, "visibility", showCoverage ? "visible" : "none");
     }
@@ -399,8 +432,11 @@ export function MapView({ site }: { site: SiteGeo }) {
     <div className="relative h-full w-full overflow-hidden">
       {/* MapLibre forces position:relative on its container, so size it explicitly */}
       <div ref={container} className="h-full w-full" aria-label="Live site map" />
-      <div className="absolute top-3 left-3 flex gap-1.5">
-        {(["dark", "satellite"] as const).map((b) => (
+      <div
+        className={clsx("absolute z-10 flex gap-1.5", editing ? "left-[19.5rem]" : "left-3")}
+        style={BELOW_BANNER}
+      >
+        {(["dark", "streets", "satellite"] as const).map((b) => (
           <button
             key={b}
             type="button"
@@ -423,7 +459,42 @@ export function MapView({ site }: { site: SiteGeo }) {
         >
           Sensor cover
         </button>
+        {canEdit && !editing && (
+          <button
+            type="button"
+            className="btn-ghost bg-ink-900/80"
+            onClick={() => {
+              setEditing(true);
+            }}
+          >
+            Edit zones
+          </button>
+        )}
       </div>
+      {editing && (
+        <ZonePanel
+          state={editor.state}
+          saving={save.isPending}
+          error={save.error?.message ?? null}
+          onDraw={editor.draw}
+          onSelect={editor.select}
+          onRename={editor.rename}
+          onKind={editor.setKind}
+          onRemove={editor.remove}
+          onPlace={editor.place}
+          onCancel={() => {
+            save.reset();
+            setEditing(false);
+          }}
+          onSave={() => {
+            save.mutate(toPayload(editor.state, editor.state.origin ?? undefined), {
+              onSuccess: () => {
+                setEditing(false);
+              },
+            });
+          }}
+        />
+      )}
       <Legend />
     </div>
   );

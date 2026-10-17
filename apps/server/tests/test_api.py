@@ -166,6 +166,90 @@ async def test_a_guard_gets_only_their_own_badge_secret(
     assert (await client.get("/api/v1/guards/me/badge", headers=bearer(op))).status_code == 403
 
 
+def _square(lon: float, lat: float, size: float = 0.0004) -> list[list[float]]:
+    return [[lon, lat], [lon + size, lat], [lon + size, lat + size], [lon, lat + size]]
+
+
+def _zone(zid: str, kind: str, lon: float, lat: float, size: float = 0.0004) -> dict[str, object]:
+    return {"id": zid, "name": zid.title(), "kind": kind, "ring": _square(lon, lat, size)}
+
+
+#: site-alpha's crate-07 tag calls the armoury home, so every valid edit keeps one.
+ARMOURY = _zone("armoury", "containment", 77.4208, 13.2608, 0.0002)
+
+
+async def test_an_admin_redraws_the_zones_and_the_site_follows(client: AsyncClient) -> None:
+    admin = await login(client, "admin@test.local")
+    ring = _square(77.4205, 13.2605)
+    body = {
+        "zones": [
+            {"id": "secure-core", "name": "Secure Core", "kind": "critical", "ring": ring},
+            _zone("approach", "warning", 77.4195, 13.2595, 0.0012),
+            ARMOURY,
+        ]
+    }
+    r = await client.put("/api/v1/sites/site-alpha/geometry", json=body, headers=bearer(admin))
+    assert r.status_code == 200, r.text
+    site = r.json()
+    assert [z["id"] for z in site["zones"]] == ["secure-core", "approach", "armoury"]
+
+    # the drawn ring comes back where it was drawn (centimetres), closed
+    drawn = next(f for f in site["geojson"]["features"] if f.get("id") == "secure-core")[
+        "geometry"
+    ]["coordinates"][0]
+    assert drawn[0] == drawn[-1]
+    for (lon, lat), (got_lon, got_lat) in zip(ring, drawn, strict=False):
+        assert abs(got_lon - lon) < 1e-5
+        assert abs(got_lat - lat) < 1e-5
+
+    # and the zone rows PostGIS answers spatial queries from were rewritten too
+    listed = (await client.get("/api/v1/sites", headers=bearer(admin))).json()
+    assert any(s["id"] == "site-alpha" for s in listed)
+
+
+async def test_moving_the_origin_keeps_the_cameras_on_the_ground(client: AsyncClient) -> None:
+    admin = await login(client, "admin@test.local")
+    before = (await client.get("/api/v1/sites/site-alpha", headers=bearer(admin))).json()
+    node_before = next(f for f in before["geojson"]["features"] if f.get("id") == "node:edge-01")
+
+    body = {
+        "origin": {"lat": 13.2000, "lon": 77.5000},
+        "zones": [_zone("secure-core", "critical", 77.4205, 13.2605), ARMOURY],
+    }
+    r = await client.put("/api/v1/sites/site-alpha/geometry", json=body, headers=bearer(admin))
+    assert r.status_code == 200, r.text
+    after = r.json()
+    assert after["center"] == [77.5, 13.2]
+    node_after = next(f for f in after["geojson"]["features"] if f.get("id") == "node:edge-01")
+    lon_b, lat_b = node_before["geometry"]["coordinates"]
+    lon_a, lat_a = node_after["geometry"]["coordinates"]
+    assert abs(lon_a - lon_b) < 1e-6
+    assert abs(lat_a - lat_b) < 1e-6
+
+
+async def test_the_last_critical_zone_cannot_be_deleted(client: AsyncClient) -> None:
+    admin = await login(client, "admin@test.local")
+    body = {"zones": [_zone("approach", "warning", 77.4195, 13.2595, 0.001), ARMOURY]}
+    r = await client.put("/api/v1/sites/site-alpha/geometry", json=body, headers=bearer(admin))
+    assert r.status_code == 422
+    assert "critical zone" in r.json()["detail"]
+
+
+async def test_a_containment_zone_an_asset_calls_home_cannot_vanish(client: AsyncClient) -> None:
+    admin = await login(client, "admin@test.local")
+    body = {"zones": [_zone("secure-core", "critical", 77.4205, 13.2605)]}
+    r = await client.put("/api/v1/sites/site-alpha/geometry", json=body, headers=bearer(admin))
+    assert r.status_code == 422
+    assert "home_zone" in r.json()["detail"]
+
+
+async def test_operators_cannot_redraw_zones(client: AsyncClient) -> None:
+    op = await login(client, "operator@test.local")
+    body = {"zones": [_zone("secure-core", "critical", 77.4205, 13.2605), ARMOURY]}
+    r = await client.put("/api/v1/sites/site-alpha/geometry", json=body, headers=bearer(op))
+    assert r.status_code == 403
+
+
 async def test_only_admin_can_revoke_tags(client: AsyncClient) -> None:
     op = await login(client, "operator@test.local")
     r = await client.patch(

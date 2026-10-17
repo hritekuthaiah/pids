@@ -71,7 +71,7 @@ Demo logins are the `SEED_*` passwords in `.env` (never print them).
 
 ## Current state (16 Oct 2026)
 
-- **v1.0: all milestones M0–M8 merged.**
+- **v1.0.0 released and tagged (17 Oct).** All milestones M0–M8 merged.
   - Decision core: held-out Pd 99.3% (139/140), 82% fewer nuisance alarms than
     naive line-crossing.
   - Camera edge node: YOLO26n ONNX, 20 ms/frame on the laptop CPU, lossless vs PyTorch.
@@ -92,7 +92,25 @@ Demo logins are the `SEED_*` passwords in `.env` (never print them).
 - **Demo plan:** [docs/demo/script.md](docs/demo/script.md). It is live, not
   simulated: a room as the compound, a badged teammate plus an intruder, alerts to
   the guard phone, the agent's triage, and the naive-baseline counter beside it.
+- **In flight (`feat/zone-editor`):** operators draw and edit zones on the real basemap
+  and save them live — `PUT /api/v1/sites/{id}/geometry` (admin) rewrites the stored
+  SiteConfig and the PostGIS rows, the decision service adopts them without a restart
+  (`Site.reload` / `DecisionEngine.refresh_site`), and a `site_changed` WebSocket message
+  makes every console refetch. Moving the site origin re-frames nodes, readers and
+  features so they stay on the same ground, and rebuilds the engine (live tracks drop).
 - **Open stretch work:** #34 LSTM trajectories, #35 adaptive zones, #36 hosted demo.
+
+## Map and zones
+
+- Basemaps are keyless Esri raster tiles: dark, streets, satellite. Imagery stops around
+  z19, so a room-sized site is deliberately over-scaled (`maxZoom: 23`, `fitBounds`
+  capped at 21) — blurry is correct there, blank is a bug.
+- Zone geometry is stored in **local metres** relative to the site origin; the API speaks
+  **WGS84** in both directions. The editor sends rings as `[lon, lat]`, open (no repeated
+  closing vertex): the server closes them.
+- Zone edits are validated by `SiteConfig`, so the rules hold at runtime: ids unique, at
+  least one critical zone, and no asset tag left pointing at a deleted containment zone
+  (that check fires first — site-alpha's `crate-07` calls `armoury` home).
 
 ## Conventions
 
@@ -143,3 +161,12 @@ Demo logins are the `SEED_*` passwords in `.env` (never print them).
   `make edge-eval` fetches only val2017.
 - Benchmark latency on an idle machine (`--latency-only`); background builds
   inflate it 3-4×.
+- `eslint-plugin-react-hooks` v7 enforces the compiler rules: no reading or writing a ref
+  during render, and no `setState` inside an effect. Keep per-interaction state in a
+  reducer and assign refs from an effect.
+- `npx tsc --noEmit` inside `apps/dashboard` is not the same check as `pnpm typecheck`
+  (`tsc -b`, project references): run the workspace one before pushing, or the console
+  image build is where you find out.
+- A new WS message needs three edits or the client union silently misses it:
+  `schemas.py`, `export_openapi.py`'s `WS_MESSAGES`, and `ServerMessage` in the
+  api-client.

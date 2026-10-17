@@ -54,7 +54,7 @@ from pids_core.fusion import Evidence, FusionWeights, fuse
 from pids_core.geo import Enu
 from pids_core.kalman import KalmanCV
 from pids_core.scoring import ScoreInput, ScoringPolicy, score
-from pids_core.site import Site
+from pids_core.site import Site, SiteConfig
 from pids_core.spoofing import SpoofMonitor
 
 # Unmodelled-acceleration spectral density (m^2/s^3) per class: walkers change
@@ -148,6 +148,15 @@ class _Entity:
         return cls, self.class_probs[cls]
 
 
+def _reliable_coverage(site: Site) -> Coverage:
+    return Coverage(
+        {
+            n.id: sector(n.position, n.heading_deg, n.fov_deg, 0.7 * n.range_m)
+            for n in site.config.nodes
+        }
+    )
+
+
 @dataclass(frozen=True, slots=True)
 class StepResult:
     assessments: list[ThreatAssessment]
@@ -178,12 +187,20 @@ class DecisionEngine:
         self._tz = ZoneInfo(site.config.site.timezone)
         # Where a camera detects reliably (inner 70% of its range): only there does
         # *not* seeing a tagged person count as evidence against the tag.
-        self._reliable_view = Coverage(
-            {
-                n.id: sector(n.position, n.heading_deg, n.fov_deg, 0.7 * n.range_m)
-                for n in site.config.nodes
-            }
-        )
+        self._reliable_view = _reliable_coverage(site)
+
+    def refresh_site(self, config: SiteConfig) -> None:
+        """Adopt an edited site (zones redrawn, tags revoked) without losing live state.
+
+        Tracks, alerts and badge links survive; only the geometry they are judged
+        against changes. The origin cannot move (``Site.reload``).
+        """
+        self.site.reload(config)
+        self._reliable_view = _reliable_coverage(self.site)
+        ble = {r.id for r in config.readers if r.kind == "ble"}
+        self._linkers = {rid: lk for rid, lk in self._linkers.items() if rid in ble}
+        for rid in ble - set(self._linkers):
+            self._linkers[rid] = BadgeLinker()
 
     # ------------------------------------------------------------------ ingest
 

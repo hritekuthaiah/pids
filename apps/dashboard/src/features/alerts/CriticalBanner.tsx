@@ -28,6 +28,7 @@ export function CriticalBanner() {
   if (!first) return null;
   return (
     <div
+      ref={publishHeight}
       role="alert"
       aria-live="assertive"
       className="absolute inset-x-0 top-0 z-20 flex items-stretch shadow-[0_8px_30px_rgb(255_59_59/0.25)]"
@@ -77,4 +78,22 @@ export function CriticalBanner() {
       <div className="hazard animate-stripes w-16 shrink-0" />
     </div>
   );
+}
+
+/**
+ * Write the banner's height onto its container as `--pids-banner-h`, so map controls
+ * can sit below it. It grows with the number of criticals, so a fixed offset would
+ * leave the controls buried exactly when an operator needs them.
+ */
+function publishHeight(el: HTMLDivElement | null): () => void {
+  const parent = el?.parentElement;
+  if (!el || !parent) return () => undefined;
+  const observer = new ResizeObserver(([entry]) => {
+    parent.style.setProperty("--pids-banner-h", `${String(entry?.contentRect.height ?? 0)}px`);
+  });
+  observer.observe(el);
+  return () => {
+    observer.disconnect();
+    parent.style.removeProperty("--pids-banner-h");
+  };
 }

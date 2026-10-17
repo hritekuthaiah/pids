@@ -62,7 +62,7 @@ class Hub:
         while True:
             try:
                 pubsub = self.redis.pubsub()
-                await pubsub.psubscribe("pids:*:live", "pids:*:alerts")
+                await pubsub.psubscribe("pids:*:live", "pids:*:alerts", "pids:*:site")
                 async for msg in pubsub.listen():
                     if msg.get("type") != "pmessage":
                         continue

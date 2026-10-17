@@ -46,6 +46,11 @@ def config_channel(site_id: str) -> str:
     return f"pids:{site_id}:config"
 
 
+def site_channel(site_id: str) -> str:
+    """Geometry changes, fanned out to every open console so maps stay in step."""
+    return f"pids:{site_id}:site"
+
+
 def live_key(site_id: str) -> str:
     return f"pids:{site_id}:live:latest"
 

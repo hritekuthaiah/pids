@@ -2,21 +2,23 @@
 
 from __future__ import annotations
 
-from typing import Any
+from datetime import UTC, datetime
+from typing import Annotated, Any
 
 from fastapi import APIRouter, HTTPException, Request, Response, status
-from pydantic import BaseModel
+from pydantic import BaseModel, Field, ValidationError
 from sqlalchemy import select
 
+from pids_core.contracts import ZoneKind
 from pids_core.coverage import sector
-from pids_core.geo import Enu
+from pids_core.geo import Enu, LocalFrame
 from pids_core.site import Site as CoreSite
 from pids_core.site import SiteConfig
 from pids_server import bus
 from pids_server.api.deps import Admin, AnyUser, RedisDep, SessionDep, SettingsDep, audit
 from pids_server.db import models as m
-from pids_server.schemas import LiveMessage
-from pids_server.site_store import active_site_id, load_site_config
+from pids_server.schemas import LiveMessage, SiteChangedMessage
+from pids_server.site_store import active_site_id, load_site_config, upsert_site
 
 router = APIRouter(prefix="/sites", tags=["sites"])
 
@@ -36,6 +38,50 @@ class TagOut(BaseModel):
 
 class TagPatch(BaseModel):
     authorized: bool
+
+
+class OriginIn(BaseModel):
+    lat: Annotated[float, Field(ge=-90, le=90)]
+    lon: Annotated[float, Field(ge=-180, le=180)]
+
+
+class ZoneIn(BaseModel):
+    """A zone as the operator drew it: a WGS84 ring of ``[lon, lat]`` vertices."""
+
+    id: Annotated[str, Field(pattern=r"^[a-z0-9][a-z0-9-]{1,62}$")]
+    name: Annotated[str, Field(min_length=1, max_length=120)]
+    kind: ZoneKind
+    ring: Annotated[list[tuple[float, float]], Field(min_length=3, max_length=500)]
+    actions: dict[str, list[str]] = Field(default_factory=dict)
+
+
+class GeometryIn(BaseModel):
+    """Zones exactly as they should be after the edit; anything omitted is deleted.
+
+    ``origin`` moves the site's local frame. Zones arrive in WGS84 either way, so they
+    stay on the ground; everything else in the site file is converted to the new frame.
+    """
+
+    origin: OriginIn | None = None
+    zones: Annotated[list[ZoneIn], Field(min_length=1, max_length=64)]
+
+
+def _to_local(frame: LocalFrame, ring: list[tuple[float, float]]) -> list[tuple[float, float]]:
+    """WGS84 ``[lon, lat]`` ring -> local metres, with any repeated closing vertex dropped."""
+    pts = [frame.to_enu(lat, lon) for lon, lat in ring]
+    if len(pts) > 3 and pts[0].distance_to(pts[-1]) < 0.01:
+        pts = pts[:-1]
+    return [(round(p.east, 3), round(p.north, 3)) for p in pts]
+
+
+def _remap(old: LocalFrame, new: LocalFrame, pts: list[tuple[float, float]]) -> list[list[float]]:
+    """Local metres in one frame -> the same ground positions in another."""
+    out = []
+    for e, n in pts:
+        lat, lon = old.to_wgs84(Enu(e, n))
+        p = new.to_enu(lat, lon)
+        out.append([round(p.east, 3), round(p.north, 3)])
+    return out
 
 
 def _ring(site: CoreSite, pts: list[tuple[float, float]], close: bool) -> list[list[float]]:
@@ -150,6 +196,81 @@ async def live(site_id: str, _: AnyUser, redis: RedisDep) -> Response:
     if raw is None:
         return Response(status_code=status.HTTP_204_NO_CONTENT)
     return Response(content=raw, media_type="application/json")
+
+
+@router.put("/{site_id}/geometry")
+async def put_geometry(
+    site_id: str,
+    body: GeometryIn,
+    principal: Admin,
+    request: Request,
+    session: SessionDep,
+    redis: RedisDep,
+) -> dict[str, Any]:
+    """Replace a site's zones (and optionally move its origin), live.
+
+    The decision engine picks the new geometry up without a restart, and every open
+    console is told to refetch. Deleting the last critical zone, or a containment zone
+    an asset tag still calls home, is refused: those are what CRITICAL means.
+    """
+    try:
+        cfg = await load_site_config(session, site_id)
+    except LookupError as exc:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, str(exc)) from exc
+
+    old = LocalFrame(cfg.site.origin.lat, cfg.site.origin.lon)
+    origin = body.origin or OriginIn(lat=cfg.site.origin.lat, lon=cfg.site.origin.lon)
+    new = LocalFrame(origin.lat, origin.lon)
+    moved = (origin.lat, origin.lon) != (cfg.site.origin.lat, cfg.site.origin.lon)
+
+    raw: dict[str, Any] = cfg.model_dump(mode="json")
+    raw["site"]["origin"] = {"lat": origin.lat, "lon": origin.lon}
+    raw["zones"] = [
+        {
+            "id": z.id,
+            "name": z.name,
+            "kind": z.kind.value,
+            "polygon": _to_local(new, z.ring),
+            "actions": z.actions,
+        }
+        for z in body.zones
+    ]
+    if moved:  # keep nodes, readers and features on the same ground
+        for node in raw["nodes"]:
+            node["position"] = _remap(old, new, [node["position"]])[0]
+        for reader in raw["readers"]:
+            reader["position"] = _remap(old, new, [reader["position"]])[0]
+        feats = raw["features"]
+        for group in ("roads", "patrol_routes"):
+            feats[group] = {k: _remap(old, new, v) for k, v in feats[group].items()}
+        feats["gates"] = {k: _remap(old, new, [v])[0] for k, v in feats["gates"].items()}
+    try:
+        updated = SiteConfig.model_validate(raw)
+    except ValidationError as exc:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, _first_error(exc)) from exc
+
+    await upsert_site(session, updated)
+    await audit(
+        session,
+        principal,
+        "site.geometry",
+        site_id,
+        request,
+        zones=[z.id for z in body.zones],
+        origin_moved=moved,
+    )
+    await session.commit()
+    await redis.publish(bus.config_channel(site_id), b"geometry")
+    await redis.publish(
+        bus.site_channel(site_id),
+        bus.dumps(SiteChangedMessage(site_id=site_id, at=datetime.now(UTC))),
+    )
+    return await get_site(site_id, principal, session)
+
+
+def _first_error(exc: ValidationError) -> str:
+    err = exc.errors()[0]
+    return str(err.get("msg", "invalid site geometry")).removeprefix("Value error, ")
 
 
 @router.get("/{site_id}/tags", response_model=list[TagOut])
