@@ -16,7 +16,7 @@ export function ConsolePage({ site }: { site: SiteGeo }) {
           <CriticalBanner />
         </div>
         <div className="flex shrink-0 gap-2">
-          <CameraPanel />
+          <CameraPanel siteId={site.id} />
           <BaselinePanel />
         </div>
       </div>

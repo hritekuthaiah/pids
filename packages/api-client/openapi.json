@@ -614,6 +614,86 @@
         "title": "BadgeOut",
         "type": "object"
       },
+      "CameraIn": {
+        "description": "A guard's phone offering its camera to the site (ADR-0013).",
+        "properties": {
+          "fps": {
+            "exclusiveMinimum": 0.0,
+            "maximum": 60.0,
+            "title": "Fps",
+            "type": "number"
+          },
+          "height": {
+            "exclusiveMinimum": 0.0,
+            "maximum": 8000.0,
+            "title": "Height",
+            "type": "integer"
+          },
+          "site_id": {
+            "title": "Site Id",
+            "type": "string"
+          },
+          "url": {
+            "pattern": "^https?://[^\\s]{3,200}$",
+            "title": "Url",
+            "type": "string"
+          },
+          "width": {
+            "exclusiveMinimum": 0.0,
+            "maximum": 8000.0,
+            "title": "Width",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "site_id",
+          "url",
+          "width",
+          "height",
+          "fps"
+        ],
+        "title": "CameraIn",
+        "type": "object"
+      },
+      "CameraOut": {
+        "properties": {
+          "fps": {
+            "title": "Fps",
+            "type": "number"
+          },
+          "height": {
+            "title": "Height",
+            "type": "integer"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "seen_at": {
+            "format": "date-time",
+            "title": "Seen At",
+            "type": "string"
+          },
+          "url": {
+            "title": "Url",
+            "type": "string"
+          },
+          "width": {
+            "title": "Width",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "name",
+          "url",
+          "width",
+          "height",
+          "fps",
+          "seen_at"
+        ],
+        "title": "CameraOut",
+        "type": "object"
+      },
       "ChannelContribution": {
         "additionalProperties": false,
         "description": "How much one evidence channel moved the fused log-odds (for explanation).",
@@ -2345,6 +2425,46 @@
         ]
       }
     },
+    "/api/v1/devices/camera": {
+      "post": {
+        "description": "A guard's phone says where its stream can be reached, so an operator can read it\noff the console instead of hunting for the phone's IP. Video never passes through\nthe server: the edge node pulls it directly over the local network.",
+        "operationId": "register_camera_api_v1_devices_camera_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CameraIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Register Camera",
+        "tags": [
+          "devices"
+        ]
+      }
+    },
     "/api/v1/devices/push-token": {
       "post": {
         "operationId": "register_push_token_api_v1_devices_push_token_post",
@@ -2540,6 +2660,58 @@
         "summary": "Get Site",
         "tags": [
           "sites"
+        ]
+      }
+    },
+    "/api/v1/sites/{site_id}/cameras": {
+      "get": {
+        "description": "Phone cameras currently offering themselves to this site.",
+        "operationId": "list_cameras_api_v1_sites__site_id__cameras_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "site_id",
+            "required": true,
+            "schema": {
+              "title": "Site Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/CameraOut"
+                  },
+                  "title": "Response List Cameras Api V1 Sites  Site Id  Cameras Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "List Cameras",
+        "tags": [
+          "devices"
         ]
       }
     },

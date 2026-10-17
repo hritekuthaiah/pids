@@ -250,6 +250,50 @@ async def test_operators_cannot_redraw_zones(client: AsyncClient) -> None:
     assert r.status_code == 403
 
 
+async def test_a_phone_offers_its_camera_and_the_console_sees_it(client: AsyncClient) -> None:
+    guard = await login(client, "guard@test.local")
+    body = {
+        "site_id": "site-alpha",
+        "url": "http://192.168.0.105:8081/stream.mjpg",
+        "width": 1280,
+        "height": 720,
+        "fps": 15,
+    }
+    assert (
+        await client.post("/api/v1/devices/camera", json=body, headers=bearer(guard))
+    ).status_code == 204
+
+    op = await login(client, "operator@test.local")
+    listed = (await client.get("/api/v1/sites/site-alpha/cameras", headers=bearer(op))).json()
+    assert [c["url"] for c in listed] == [body["url"]]
+    assert listed[0]["width"] == 1280
+
+    # another site's console does not see it
+    assert (await client.get("/api/v1/sites/demo-room/cameras", headers=bearer(op))).json() == []
+
+
+async def test_a_camera_url_must_be_a_plain_stream_address(client: AsyncClient) -> None:
+    guard = await login(client, "guard@test.local")
+    for url in ("file:///etc/passwd", "javascript:alert(1)", "http://" + "x" * 300):
+        body = {"site_id": "site-alpha", "url": url, "width": 640, "height": 480, "fps": 10}
+        r = await client.post("/api/v1/devices/camera", json=body, headers=bearer(guard))
+        assert r.status_code == 422, url
+
+
+async def test_operators_do_not_register_cameras(client: AsyncClient) -> None:
+    op = await login(client, "operator@test.local")
+    body = {
+        "site_id": "site-alpha",
+        "url": "http://192.168.0.9:8081/stream.mjpg",
+        "width": 640,
+        "height": 480,
+        "fps": 10,
+    }
+    assert (
+        await client.post("/api/v1/devices/camera", json=body, headers=bearer(op))
+    ).status_code == 403
+
+
 async def test_only_admin_can_revoke_tags(client: AsyncClient) -> None:
     op = await login(client, "operator@test.local")
     r = await client.patch(

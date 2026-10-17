@@ -202,8 +202,12 @@ gps: ## Stream the GPS module's fixes to MQTT (no camera), per sensors.gps in ED
 	set -a && . ./.env && set +a && $(UV) pids-edge gps --config $(EDGE_CONFIG)
 
 .PHONY: edge
-edge: ## Run the camera edge node against the stack; preview at http://127.0.0.1:8090/stream.mjpg
-	set -a && . ./.env && set +a && $(UV) pids-edge run --config $(EDGE_CONFIG)
+edge: ## Run the camera edge node (SOURCE=<url|index> overrides the camera); preview http://127.0.0.1:8090/stream.mjpg
+	set -a && . ./.env && set +a && $(UV) pids-edge run --config $(EDGE_CONFIG) $(if $(SOURCE),--source $(SOURCE),)
+
+.PHONY: camera-test
+camera-test: ## Check a phone camera stream before the demo: make camera-test URL=http://<phone>:8081/stream.mjpg
+	$(UV) pids-edge camera-test $(URL)
 
 ##@ Help
 

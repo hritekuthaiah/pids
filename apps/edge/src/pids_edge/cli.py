@@ -8,6 +8,7 @@
     pids-edge gps --probe                     identify a plugged-in GPS module
     pids-edge gps --config ...                stream GPS fixes to MQTT (no camera)
     pids-edge ble                             list PIDS badges heard over Bluetooth
+    pids-edge camera-test <url>               check a phone camera stream
 
 MQTT credentials come from the environment (``MQTT_HOST``, ``MQTT_PORT``,
 ``MQTT_EDGE_USER``, ``MQTT_EDGE_PASSWORD``); ``make edge`` loads them from ``.env``.
@@ -137,6 +138,56 @@ def _start_ble(cfg: EdgeConfig, site: Site, publisher: MqttPublisher | None) -> 
     scanner = BadgeScanner(BadgeAggregator(resolver, on_read))
     scanner.start()
     return scanner
+
+
+def cmd_camera_test(args: argparse.Namespace) -> int:
+    """Open a phone or IP camera stream and report what the edge node would get."""
+    import statistics
+    import time
+
+    from pids_edge.camera import LiveCamera, is_network
+    from pids_edge.config import CameraConfig
+
+    url = args.url
+    if not is_network(url):
+        log.error("expected a stream URL (http://, https://, rtsp://), got %r", url)
+        return 2
+    log.info("opening %s", url)
+    opened = time.monotonic()
+    try:
+        cam = LiveCamera(CameraConfig(source=url))
+    except RuntimeError as exc:
+        log.error("%s", exc)
+        log.error(
+            "checklist: phone and laptop on the same wifi; the streaming screen open; "
+            "the URL copied exactly (most apps show it); no VPN on either device"
+        )
+        return 1
+    try:
+        first = cam.read(timeout_s=15.0)
+        if first is None:
+            log.error("connected but no frame arrived within 15 s")
+            return 1
+        log.info("first frame after %.1f s: %dx%d", time.monotonic() - opened, *first.size)
+        times = []
+        last = first.monotonic
+        for _ in range(args.frames):
+            frame = cam.read(timeout_s=10.0)
+            if frame is None:
+                break
+            times.append(frame.monotonic - last)
+            last = frame.monotonic
+        if times:
+            fps = 1.0 / statistics.median(times)
+            log.info("%d frames, median %.1f fps, %d dropped", len(times), fps, cam.dropped)
+            if fps < 8:
+                log.warning(
+                    "under 8 fps: lower the phone's resolution or move closer to the router"
+                )
+        log.info("usable: pids-edge run --source %s", url)
+    finally:
+        cam.close()
+    return 0
 
 
 def cmd_run(args: argparse.Namespace) -> int:
@@ -369,6 +420,11 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--port", default="auto")
     p.add_argument("--offline", action="store_true", help="print fixes without MQTT")
     p.set_defaults(fn=cmd_gps)
+
+    p = sub.add_parser("camera-test", help="check a phone or IP camera stream before the demo")
+    p.add_argument("url", help="e.g. http://192.168.0.105:8081/stream.mjpg")
+    p.add_argument("--frames", type=int, default=60)
+    p.set_defaults(fn=cmd_camera_test)
 
     p = sub.add_parser("ble", help="listen for PIDS badges and print who is heard")
     p.add_argument("--config", type=Path, default=_DEFAULT_CONFIG)

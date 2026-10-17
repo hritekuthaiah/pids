@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from datetime import UTC, datetime
 from typing import Annotated, Literal
 
@@ -12,7 +13,7 @@ from sqlalchemy.dialects.postgresql import insert
 from pids_core import badges
 from pids_core.contracts import GeoPoint, GpsFix
 from pids_server import bus
-from pids_server.api.deps import AnyUser, Guard, SessionDep, SettingsDep, audit
+from pids_server.api.deps import AnyUser, Guard, RedisDep, SessionDep, SettingsDep, audit
 from pids_server.db import models as m
 
 router = APIRouter(tags=["devices"])
@@ -31,6 +32,25 @@ class BadgeOut(BaseModel):
     window_s: int
     company_id: int
     payload_prefix_hex: str = Field(description="magic + version, before the 8-byte rolling id")
+
+
+class CameraIn(BaseModel):
+    """A guard's phone offering its camera to the site (ADR-0013)."""
+
+    site_id: str
+    url: Annotated[str, Field(pattern=r"^https?://[^\s]{3,200}$")]
+    width: Annotated[int, Field(gt=0, le=8000)]
+    height: Annotated[int, Field(gt=0, le=8000)]
+    fps: Annotated[float, Field(gt=0, le=60)]
+
+
+class CameraOut(BaseModel):
+    name: str
+    url: str
+    width: int
+    height: int
+    fps: float
+    seen_at: datetime
 
 
 class LocationIn(BaseModel):
@@ -53,6 +73,41 @@ async def register_push_token(body: PushTokenIn, principal: AnyUser, session: Se
         )
     )
     await session.commit()
+
+
+#: A phone drops off the list this long after it stops announcing itself.
+CAMERA_TTL_S = 90
+
+
+@router.post("/devices/camera", status_code=status.HTTP_204_NO_CONTENT)
+async def register_camera(body: CameraIn, principal: Guard, redis: RedisDep) -> None:
+    """A guard's phone says where its stream can be reached, so an operator can read it
+    off the console instead of hunting for the phone's IP. Video never passes through
+    the server: the edge node pulls it directly over the local network."""
+    entry = {
+        "name": principal.name,
+        "url": body.url,
+        "width": body.width,
+        "height": body.height,
+        "fps": body.fps,
+        "seen_at": datetime.now(UTC).isoformat(),
+    }
+    await redis.set(
+        bus.camera_key(body.site_id, str(principal.user_id)),
+        json.dumps(entry),
+        ex=CAMERA_TTL_S,
+    )
+
+
+@router.get("/sites/{site_id}/cameras", response_model=list[CameraOut])
+async def list_cameras(site_id: str, _: AnyUser, redis: RedisDep) -> list[CameraOut]:
+    """Phone cameras currently offering themselves to this site."""
+    out: list[CameraOut] = []
+    async for key in redis.scan_iter(match=bus.camera_key(site_id, "*"), count=50):
+        raw = await redis.get(key)
+        if raw:
+            out.append(CameraOut.model_validate(json.loads(raw)))
+    return sorted(out, key=lambda c: c.name)
 
 
 @router.get("/guards/me/badge", response_model=BadgeOut)
