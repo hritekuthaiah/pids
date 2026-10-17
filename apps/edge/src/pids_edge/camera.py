@@ -9,6 +9,7 @@ file is read in order (every frame matters for replay and benchmarks).
 from __future__ import annotations
 
 import logging
+import os
 import sys
 import threading
 import time
@@ -47,9 +48,28 @@ class FrameSource(Protocol):
         """Release the device."""
 
 
+#: A phone or IP camera: anything we open over the network rather than a USB device.
+NETWORK_SCHEMES = ("http://", "https://", "rtsp://", "rtmp://")
+
+
+def is_network(source: int | str) -> bool:
+    return isinstance(source, str) and source.startswith(NETWORK_SCHEMES)
+
+
 def _open(source: int | str) -> cv2.VideoCapture:
     if isinstance(source, int) and sys.platform == "darwin":
         return cv2.VideoCapture(source, cv2.CAP_AVFOUNDATION)
+    if is_network(source):
+        # FFMPEG for network streams: RTSP over TCP (UDP drops frames on wifi) and a
+        # short open/read timeout so a phone that walks out of range is noticed in
+        # seconds rather than blocking the grabber thread indefinitely.
+        os.environ.setdefault(
+            "OPENCV_FFMPEG_CAPTURE_OPTIONS", "rtsp_transport;tcp|stimeout;5000000"
+        )
+        cap = cv2.VideoCapture(source, cv2.CAP_FFMPEG)
+        cap.set(cv2.CAP_PROP_OPEN_TIMEOUT_MSEC, 5000)
+        cap.set(cv2.CAP_PROP_READ_TIMEOUT_MSEC, 5000)
+        return cap
     return cv2.VideoCapture(source)
 
 
@@ -64,20 +84,29 @@ class LiveCamera:
         self._taken = -1
         self._count = 0
         self.dropped = 0
+        self.reconnects = 0
         self._running = True
         self._thread = threading.Thread(target=self._loop, name="camera", daemon=True)
         self._thread.start()
 
     def _connect(self) -> cv2.VideoCapture:
         cap = _open(self.config.source)
-        cap.set(cv2.CAP_PROP_FRAME_WIDTH, self.config.width)
-        cap.set(cv2.CAP_PROP_FRAME_HEIGHT, self.config.height)
-        cap.set(cv2.CAP_PROP_FPS, self.config.fps)
+        if not is_network(self.config.source):
+            # A network stream publishes whatever the phone is sending; asking a
+            # decoder to change resolution mid-stream only confuses it.
+            cap.set(cv2.CAP_PROP_FRAME_WIDTH, self.config.width)
+            cap.set(cv2.CAP_PROP_FRAME_HEIGHT, self.config.height)
+            cap.set(cv2.CAP_PROP_FPS, self.config.fps)
         cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
         if not cap.isOpened():
             raise RuntimeError(
-                f"camera {self.config.source!r} did not open — check the index "
-                "(`pids-edge cameras`) and camera permission for this terminal"
+                f"camera {self.config.source!r} did not open — "
+                + (
+                    "check the phone is streaming, on the same network, and that the URL "
+                    "is reachable (`pids-edge camera-test <url>`)"
+                    if is_network(self.config.source)
+                    else "check the index (`pids-edge cameras`) and camera permission for this terminal"
+                )
             )
         w = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
         h = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
@@ -86,11 +115,14 @@ class LiveCamera:
 
     def _loop(self) -> None:
         failures = 0
+        # A network stream fails slowly (one read timeout each), so give up on it
+        # sooner than on a USB camera that can rattle off failures in milliseconds.
+        limit = 3 if is_network(self.config.source) else 30
         while self._running:
             ok, image = self._cap.read()
             if not ok:
                 failures += 1
-                if failures >= 30:  # unplugged or crashed: reopen with a pause
+                if failures >= limit:  # unplugged, out of range or crashed: reopen
                     log.warning("camera read failing; reopening")
                     self._cap.release()
                     time.sleep(1.0)
@@ -99,6 +131,7 @@ class LiveCamera:
                     except RuntimeError as exc:
                         log.error("%s", exc)
                     failures = 0
+                    self.reconnects += 1
                 time.sleep(0.01)
                 continue
             failures = 0
@@ -162,7 +195,7 @@ class VideoFile:
 
 def open_source(config: CameraConfig) -> FrameSource:
     src = config.source
-    if isinstance(src, str) and Path(src).is_file():
+    if isinstance(src, str) and not is_network(src) and Path(src).is_file():
         return VideoFile(Path(src))
     return LiveCamera(config)
 

@@ -13,6 +13,10 @@ The guard's phone does three jobs (PLT-09, ADR-0012):
    every 30 s, screen off or not.
 3. **Cooperative GPS tag.** A foreground location service shares the guard's position
    with the decision engine.
+4. **Camera node (ADR-0013).** A spare phone can *be* the site camera: a native Camera2
+   service streams MJPEG on the local network for the edge node to read, and tells the
+   control room where to find it. Nothing is recorded on the phone, and no video goes to
+   the server.
 
 Built with Expo SDK 58 / React Native 0.88. It uses the shared `@pids/api-client`, so
 its API calls are type-checked against the server's OpenAPI document.

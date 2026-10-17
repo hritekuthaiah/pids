@@ -1,5 +1,5 @@
 import type { Alert } from "@pids/api-client";
-import { Link } from "expo-router";
+import { Link, router } from "expo-router";
 import { useMemo } from "react";
 import { FlatList, Pressable, StyleSheet, Text, View } from "react-native";
 
@@ -94,6 +94,16 @@ export default function Alerts() {
             <Button
               title={sharing ? "Stop sharing" : "Share position"}
               onPress={() => void toggleSharing()}
+            />
+          </View>
+        </View>
+        <View style={s.actions}>
+          <View style={{ flex: 1 }}>
+            <Button
+              title="Use this phone as a camera"
+              onPress={() => {
+                router.push("/camera");
+              }}
             />
           </View>
         </View>

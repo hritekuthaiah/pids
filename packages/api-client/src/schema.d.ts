@@ -235,6 +235,28 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/devices/camera": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Register Camera
+         * @description A guard's phone says where its stream can be reached, so an operator can read it
+         *     off the console instead of hunting for the phone's IP. Video never passes through
+         *     the server: the edge node pulls it directly over the local network.
+         */
+        post: operations["register_camera_api_v1_devices_camera_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/devices/push-token": {
         parameters: {
             query?: never;
@@ -326,6 +348,26 @@ export interface paths {
          * @description Everything a map needs, as GeoJSON in WGS84.
          */
         get: operations["get_site_api_v1_sites__site_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/sites/{site_id}/cameras": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Cameras
+         * @description Phone cameras currently offering themselves to this site.
+         */
+        get: operations["list_cameras_api_v1_sites__site_id__cameras_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -652,6 +694,40 @@ export interface components {
             tag_id: string;
             /** Window S */
             window_s: number;
+        };
+        /**
+         * CameraIn
+         * @description A guard's phone offering its camera to the site (ADR-0013).
+         */
+        CameraIn: {
+            /** Fps */
+            fps: number;
+            /** Height */
+            height: number;
+            /** Site Id */
+            site_id: string;
+            /** Url */
+            url: string;
+            /** Width */
+            width: number;
+        };
+        /** CameraOut */
+        CameraOut: {
+            /** Fps */
+            fps: number;
+            /** Height */
+            height: number;
+            /** Name */
+            name: string;
+            /**
+             * Seen At
+             * Format: date-time
+             */
+            seen_at: string;
+            /** Url */
+            url: string;
+            /** Width */
+            width: number;
         };
         /**
          * ChannelContribution
@@ -1507,6 +1583,37 @@ export interface operations {
             };
         };
     };
+    register_camera_api_v1_devices_camera_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CameraIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     register_push_token_api_v1_devices_push_token_post: {
         parameters: {
             query?: never;
@@ -1633,6 +1740,37 @@ export interface operations {
                     "application/json": {
                         [key: string]: unknown;
                     };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_cameras_api_v1_sites__site_id__cameras_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                site_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CameraOut"][];
                 };
             };
             /** @description Validation Error */

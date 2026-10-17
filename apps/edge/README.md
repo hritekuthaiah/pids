@@ -54,6 +54,33 @@ Open the preview at <http://127.0.0.1:8090/stream.mjpg> and status at `/status`.
 Frames are shown live and never stored. `uv run pids-edge run --source clip.mp4`
 replays a recording through the same pipeline.
 
+## Using a phone as the camera
+
+A camera belongs high in a corner, which is where a spare phone can go — the laptop
+stays with the operator (ADR-0013). Two ways, both just a URL to the edge node:
+
+**The guard app itself.** Open it, tap *Use this phone as a camera*, then *Start
+camera*. It shows the address to use; nothing is recorded on the phone and no video
+reaches the server. The console lists phones that are offering themselves, under the
+live camera panel.
+
+**Any IP-camera app**, if you would rather: use the MJPEG or RTSP URL it prints.
+
+Then, on the laptop:
+
+```bash
+make camera-test URL=http://192.168.0.105:8081/stream.mjpg   # resolution, fps, dropped frames
+make edge SOURCE=http://192.168.0.105:8081/stream.mjpg       # run on it
+```
+
+Or set `camera.source` in `config/edge/edge-01.yaml` to that URL. The edge node
+reconnects on its own when the stream drops, and keeps publishing from wherever it
+left off. **Calibrate after the phone is in its final position** — the floor
+homography belongs to where the camera sits, so moving it invalidates the mapping.
+
+Phones throttle and drain: keep it plugged in, stay on 1280x720 at 15 fps, and put it
+on the same wifi as the laptop with no VPN on either device.
+
 ## Over the network (TLS)
 
 On one laptop the edge node talks to the broker over loopback. An edge node on

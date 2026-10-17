@@ -2,6 +2,7 @@ import clsx from "clsx";
 import { useEffect, useId, useState } from "react";
 
 import { Panel } from "../../components/ui";
+import { PhoneCameras } from "./PhoneCameras";
 import { EDGE_PREVIEW_URL, attemptUrl, snapshotUrl } from "../../lib/camera";
 
 const RETRY_MS = 3000;
@@ -109,7 +110,7 @@ function useFeed(url: string, shown: boolean) {
 }
 
 /** The edge node's annotated preview, embedded as an MJPEG <img> (ADR-0011). */
-export function CameraPanel({ url = EDGE_PREVIEW_URL }: { url?: string }) {
+export function CameraPanel({ url = EDGE_PREVIEW_URL, siteId }: { url?: string; siteId?: string }) {
   const [shown, setShown] = useState(true);
   const feed = useFeed(url, shown);
   const bodyId = useId();
@@ -201,6 +202,7 @@ export function CameraPanel({ url = EDGE_PREVIEW_URL }: { url?: string }) {
           </p>
         )}
       </div>
+      {siteId !== undefined && <PhoneCameras siteId={siteId} />}
     </Panel>
   );
 }

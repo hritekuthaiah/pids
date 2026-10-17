@@ -53,6 +53,7 @@ export default function RootLayout() {
         <Stack.Protected guard={user !== null}>
           <Stack.Screen name="index" options={{ title: "PIDS · Guard" }} />
           <Stack.Screen name="alert/[id]" options={{ title: "Alert" }} />
+          <Stack.Screen name="camera" options={{ title: "Camera node" }} />
         </Stack.Protected>
         <Stack.Protected guard={user === null}>
           <Stack.Screen name="login" options={{ headerShown: false }} />

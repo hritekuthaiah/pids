@@ -51,6 +51,11 @@ def site_channel(site_id: str) -> str:
     return f"pids:{site_id}:site"
 
 
+def camera_key(site_id: str, node: str) -> str:
+    """A phone announcing itself as a camera; expires unless it keeps saying so."""
+    return f"pids:{site_id}:camera:{node}"
+
+
 def live_key(site_id: str) -> str:
     return f"pids:{site_id}:live:latest"
 
