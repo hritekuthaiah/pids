@@ -64,6 +64,7 @@ make edge SOURCE=http://<phone-ip>:8081/stream.mjpg   # use a phone as the camer
 make camera-test URL=http://<phone-ip>:8081/stream.mjpg   # check that stream before relying on it
 PIDS_SITE_CONFIG=config/sites/demo-room.yaml make up-all   # make the demo room the live site
 make demo / demo-reset   # live demo bring-up (LAN, TLS, console :8080) / clean slate between rehearsals
+make site-export         # write the zones/origin drawn in the console back to config/sites/<live>.yaml (edge nodes read it)
 make eval / edge-eval    # held-out evaluation report / detector accuracy + benchmarks
 make obs / certs / env-sync   # Grafana :3000 / dev CA for MQTT TLS / add new .env.example keys
 make gps-probe           # identify a plugged-in GPS module
@@ -92,6 +93,13 @@ Demo logins are the `SEED_*` passwords in `.env` (never print them).
     survive), and a `site_changed` WebSocket message makes every console refetch.
     Moving the site origin re-frames nodes, readers and features so they stay on the
     same ground, and rebuilds the engine (live tracks drop).
+  - **Site location and typed coordinates.** In *Edit zones*, an admin can put the site
+    on the real spot — **Use my location** (browser geolocation, with the fix accuracy
+    shown), latitude/longitude boxes (a pasted `lat, lon` pair fills both), or *Pick on
+    map* — and edit every corner of a zone as latitude/longitude, or paste a survey list
+    to make a zone. Moving the origin *relocates* the whole site by default (zones,
+    nodes, readers keep their size and layout); untick it to only re-anchor the frame.
+    `make site-export` writes the result back to the site YAML.
   - **Phone as camera node (ADR-0013).** A spare Android phone's `pids-camera`
     foreground service streams MJPEG on the LAN; the edge node opens that URL exactly
     as it opens a webcam. No laptop webcam needed, nothing recorded on the phone, and
@@ -123,6 +131,20 @@ Demo logins are the `SEED_*` passwords in `.env` (never print them).
 - Zone edits are validated by `SiteConfig`, so the rules hold at runtime: ids unique, at
   least one critical zone, and no asset tag left pointing at a deleted containment zone
   (that check fires first — site-alpha's `crate-07` calls `armoury` home).
+- Picking a new origin has two meanings, and `PUT .../geometry` takes both. By default
+  (`relocate: true`) the site *moves*: the console carries every zone to the new origin at
+  its real size (`translateRing`, WGS84 metres-per-degree) and the server keeps nodes,
+  readers and features at the same local metres, so they travel with it. Without it
+  (`relocate: false`) only the frame moves: zones stay on the ground they cover and the
+  server converts nodes/readers/features so they stay put too. Either way the decision
+  engine rebuilds and live tracks drop. A zone the console re-sends with no actions keeps
+  the ones the site file gave it (the console has no editor for them).
+- Zone and origin edits live in **PostGIS only**. `pids-admin seed` rewrites the site row
+  from `config/sites/<site>.yaml` on every API start (`make up-all`, `make demo`), and the
+  edge node reads that YAML for its origin: run `make site-export` after saving or the
+  edit is lost on restart and the camera node disagrees with the console about where the
+  site is. The console shows a node's footprint from its last `NodeView`, so after a
+  relocation it stays at the old spot until the edge restarts on the exported file.
 - A camera's drawn footprint is the `NodeView` it published (`GET /sites/{id}/views`),
   not the config's idealised sector: the edge node walks the image border, projects each
   sample onto the floor, steps down the column where a sample is at or beyond the
@@ -190,6 +212,11 @@ Demo logins are the `SEED_*` passwords in `.env` (never print them).
   api-client.
 - A new MQTT topic also needs a line in `infra/mosquitto/acl`. Without it the broker
   refuses the publish *silently*: the node logs a clean send and nothing ever arrives.
+- Browser geolocation needs a secure context: it works on `http://localhost`, never on the
+  LAN console (`http://192.168…:8080`). A laptop's fix is often ±20–100 m — fine to find
+  the building, not the room's corner; use *Pick on map* on the satellite view for that.
+- The `api` image bakes in `config/`, and `pids-admin` runs inside it: an edited site YAML
+  reaches the database only after `make up-all` rebuilds the image (which re-seeds).
 - OpenCV blocks forever on a dead network stream. Network sources get the FFMPEG
   backend with `rtsp_transport;tcp|stimeout;5000000`, open/read timeouts and a short
   retry limit — a phone that walks out of Wi-Fi must reconnect, not hang the pipeline.

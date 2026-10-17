@@ -60,10 +60,13 @@ the system is operated, not configured once and frozen.
 
 1. **Phone and laptop on the same Wi-Fi.** No VPN on either. This is the single most
    common cause of a dead demo.
-2. **Measure the room** and edit `config/sites/demo-room.yaml`: the two zone polygons,
-   the camera position and heading, and **`site.origin`** set to the room's real
-   coordinates. Set the origin *now*, not on stage — moving it live rebuilds the decision
-   engine and drops live tracks.
+2. **Put the site on the room and measure it.** Edit `config/sites/demo-room.yaml` (the two
+   zone polygons, the camera position and heading, and **`site.origin`** set to the room's
+   real coordinates) — or sign in as admin and use *Edit zones → Site location* (*Use my
+   location*, typed coordinates, or *Pick on map*) and the *Corners* table, then
+   `make site-export` to keep it. Set the origin *now*, not on stage — moving it live
+   rebuilds the decision engine and drops live tracks. Full steps:
+   [demo-day runbook](../runbooks/demo-day.md).
 3. **Tape the floor:** the watched floor, the secure core, and the second core for Act 6
    in a different colour.
 4. **Stand the phone up as the camera.** Wedge it high in a corner, lens across the room,
