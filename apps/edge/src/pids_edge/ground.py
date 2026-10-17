@@ -203,6 +203,11 @@ class GroundPlane:
         return float(p[0] / p[2]), float(p[1] / p[2])
 
     @property
+    def matrix(self) -> F64:
+        """Image pixels -> site metres for the resolution this instance is reading."""
+        return self._h
+
+    @property
     def _floor_sign(self) -> float:
         w, h = self.frame_size
         return float(np.sign((self._h @ np.array([w / 2, h - 1.0, 1.0]))[2]) or 1.0)
@@ -237,6 +242,52 @@ class GroundPlane:
         cov = j @ np.diag([su**2, sv**2]) @ j.T
         sigma = math.sqrt(float(np.linalg.eigvalsh(cov).max()) + self.calibration.rms_error_m**2)
         return FloorFix(here, sigma, feet_visible)
+
+
+def footprint(ground: GroundPlane, here: Enu, max_range_m: float, samples: int = 24) -> list[Enu]:
+    """The ground area this camera can actually see, as a polygon in site metres.
+
+    Walks the image border, projects each sample onto the floor, and keeps the runs
+    that land in front of the camera and within range. Pixels at or above the horizon
+    project to infinity (or behind the lens), so the polygon is clipped by stepping in
+    from each far corner until the projection is usable — which is what makes this the
+    *visible* area rather than an idealised sector.
+    """
+    w, h = ground.frame_size
+    last = samples - 1
+    bottom = [(w * i / last, h - 1.0) for i in range(samples)]
+    right = [(w - 1.0, (h - 1.0) * (1 - i / last)) for i in range(samples)]
+    top = [(w * (1 - i / last), 0.0) for i in range(samples)]
+    left = [(0.0, (h - 1.0) * i / last) for i in range(samples)]
+    border = [*bottom, *right, *top, *left]
+
+    out: list[Enu] = []
+    for u, v in border:
+        point = _usable(ground, here, u, v, max_range_m)
+        if point is not None:
+            out.append(point)
+    return _dedupe(out)
+
+
+def _usable(ground: GroundPlane, here: Enu, u: float, v: float, max_range_m: float) -> Enu | None:
+    """The sample itself, or the furthest usable point below it on the same column."""
+    for step in range(12):
+        # Walk down from the horizon: each step is a 12th of the way to the bottom.
+        y = v + step * (ground.frame_size[1] - 1 - v) / 12.0
+        point = ground.to_world(u, y)
+        if point is not None and point.distance_to(here) <= max_range_m:
+            return point
+    return None
+
+
+def _dedupe(points: list[Enu], min_step_m: float = 0.25) -> list[Enu]:
+    out: list[Enu] = []
+    for p in points:
+        if not out or p.distance_to(out[-1]) >= min_step_m:
+            out.append(p)
+    if len(out) > 2 and out[0].distance_to(out[-1]) < min_step_m:
+        out.pop()
+    return out
 
 
 def calibration_from(

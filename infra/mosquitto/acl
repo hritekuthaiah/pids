@@ -1,5 +1,5 @@
 # Topic layout:  pids/<site_id>/<node_id>/<stream>
-#   streams published by edge nodes: tracks, gps, sensors, health
+#   streams published by edge nodes: tracks, gps, sensors, health, view
 #   commands published by the server:  pids/<site_id>/<node_id>/cmd/<name>
 
 # The decision service reads all telemetry and may command any node.
@@ -17,6 +17,7 @@ topic write pids/+/+/tracks
 topic write pids/+/+/gps
 topic write pids/+/+/sensors
 topic write pids/+/+/health
+topic write pids/+/+/view
 
 # Edge nodes authenticate with their node id as username (%u) and may only
 # publish their own telemetry and read their own commands.
@@ -24,4 +25,5 @@ pattern write pids/+/%u/tracks
 pattern write pids/+/%u/gps
 pattern write pids/+/%u/sensors
 pattern write pids/+/%u/health
+pattern write pids/+/%u/view
 pattern read pids/+/%u/cmd/#

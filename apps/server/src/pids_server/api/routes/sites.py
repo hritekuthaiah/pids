@@ -9,7 +9,7 @@ from fastapi import APIRouter, HTTPException, Request, Response, status
 from pydantic import BaseModel, Field, ValidationError
 from sqlalchemy import select
 
-from pids_core.contracts import ZoneKind
+from pids_core.contracts import NodeView, ZoneKind
 from pids_core.coverage import sector
 from pids_core.geo import Enu, LocalFrame
 from pids_core.site import Site as CoreSite
@@ -196,6 +196,22 @@ async def live(site_id: str, _: AnyUser, redis: RedisDep) -> Response:
     if raw is None:
         return Response(status_code=status.HTTP_204_NO_CONTENT)
     return Response(content=raw, media_type="application/json")
+
+
+@router.get("/{site_id}/views", response_model=list[NodeView])
+async def list_views(site_id: str, _: AnyUser, redis: RedisDep) -> list[NodeView]:
+    """Where each camera is actually looking: its ground footprint and pixel mapping.
+
+    Published by the edge nodes after calibration, so the console draws the real
+    visible area instead of an idealised sector, and can turn a point in a camera
+    image into a point on the map.
+    """
+    out: list[NodeView] = []
+    async for key in redis.scan_iter(match=bus.view_key(site_id, "*"), count=50):
+        raw = await redis.get(key)
+        if raw:
+            out.append(NodeView.model_validate_json(raw))
+    return sorted(out, key=lambda v: v.node_id)
 
 
 @router.put("/{site_id}/geometry")

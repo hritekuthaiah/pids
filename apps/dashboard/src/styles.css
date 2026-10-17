@@ -317,3 +317,20 @@
 .zone-containment {
   color: var(--color-containment);
 }
+
+/* A point an operator picked in a camera image, placed on the map. */
+.camera-pin {
+  width: 18px;
+  height: 18px;
+  border: 2px solid var(--color-phosphor);
+  border-radius: 50%;
+  background: color-mix(in oklab, var(--color-phosphor) 25%, transparent);
+  box-shadow: 0 0 0 1px #04060599;
+}
+.camera-pin::after {
+  content: "";
+  position: absolute;
+  inset: 6px;
+  background: var(--color-phosphor);
+  border-radius: 50%;
+}

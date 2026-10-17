@@ -93,6 +93,9 @@ interface LiveStore extends LiveData {
   apply: (msg: ServerMessage) => void;
   setStatus: (s: LiveStatus) => void;
   selectAlert: (id: string | null) => void;
+  /** A point picked in a camera image, shown on the map until picked again. */
+  pinned: { lngLat: [number, number]; label: string } | null;
+  pin: (p: { lngLat: [number, number]; label: string } | null) => void;
   selectEntity: (id: string | null) => void;
   toggleMute: () => void;
   resetTally: () => void;
@@ -127,6 +130,10 @@ export const useLive = create<LiveStore>((set) => ({
   },
   toggleMute: () => {
     set((s) => ({ muted: !s.muted }));
+  },
+  pinned: null,
+  pin: (pinned) => {
+    set({ pinned });
   },
   resetTally: () => {
     set({ tally: emptyTally });

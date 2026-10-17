@@ -933,6 +933,90 @@
         "title": "LoginIn",
         "type": "object"
       },
+      "NodeView": {
+        "additionalProperties": false,
+        "description": "Where a camera is actually looking: its ground footprint and pixel mapping.\n\nPublished retained by the edge node after calibration, so the console can draw the\nreal visible area rather than an idealised sector, and can turn a point in the\ncamera image into a point on the map.",
+        "properties": {
+          "at": {
+            "format": "date-time",
+            "title": "At",
+            "type": "string"
+          },
+          "calibration_method": {
+            "title": "Calibration Method",
+            "type": "string"
+          },
+          "calibration_rms_m": {
+            "minimum": 0.0,
+            "title": "Calibration Rms M",
+            "type": "number"
+          },
+          "footprint": {
+            "items": {
+              "$ref": "#/components/schemas/GeoPoint"
+            },
+            "title": "Footprint",
+            "type": "array"
+          },
+          "homography": {
+            "items": {
+              "items": {
+                "type": "number"
+              },
+              "type": "array"
+            },
+            "title": "Homography",
+            "type": "array"
+          },
+          "image_size": {
+            "maxItems": 2,
+            "minItems": 2,
+            "prefixItems": [
+              {
+                "exclusiveMinimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "exclusiveMinimum": 0.0,
+                "type": "integer"
+              }
+            ],
+            "title": "Image Size",
+            "type": "array"
+          },
+          "node_id": {
+            "title": "Node Id",
+            "type": "string"
+          },
+          "origin": {
+            "$ref": "#/components/schemas/GeoPoint"
+          },
+          "schema_version": {
+            "const": 1,
+            "default": 1,
+            "title": "Schema Version",
+            "type": "integer"
+          },
+          "site_id": {
+            "title": "Site Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "schema_version",
+          "site_id",
+          "node_id",
+          "at",
+          "image_size",
+          "footprint",
+          "homography",
+          "origin",
+          "calibration_method",
+          "calibration_rms_m"
+        ],
+        "title": "NodeView",
+        "type": "object"
+      },
       "OriginIn": {
         "properties": {
           "lat": {
@@ -2938,6 +3022,58 @@
           }
         ],
         "summary": "Patch Tag",
+        "tags": [
+          "sites"
+        ]
+      }
+    },
+    "/api/v1/sites/{site_id}/views": {
+      "get": {
+        "description": "Where each camera is actually looking: its ground footprint and pixel mapping.\n\nPublished by the edge nodes after calibration, so the console draws the real\nvisible area instead of an idealised sector, and can turn a point in a camera\nimage into a point on the map.",
+        "operationId": "list_views_api_v1_sites__site_id__views_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "site_id",
+            "required": true,
+            "schema": {
+              "title": "Site Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/NodeView"
+                  },
+                  "title": "Response List Views Api V1 Sites  Site Id  Views Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "List Views",
         "tags": [
           "sites"
         ]

@@ -215,6 +215,29 @@ class NodeHealth(Contract):
     calibration_rms_m: NonNegative | None = None
 
 
+class NodeView(Contract):
+    """Where a camera is actually looking: its ground footprint and pixel mapping.
+
+    Published retained by the edge node after calibration, so the console can draw the
+    real visible area rather than an idealised sector, and can turn a point in the
+    camera image into a point on the map.
+    """
+
+    schema_version: Literal[1] = SCHEMA_VERSION
+    site_id: str
+    node_id: str
+    at: AwareDatetime
+    image_size: tuple[Annotated[int, Field(gt=0)], Annotated[int, Field(gt=0)]]
+    #: The visible ground area in WGS84, clipped at the horizon and the node's range.
+    footprint: list[GeoPoint]
+    #: Row-major 3x3 homography: image pixels -> site-local metres (east, north).
+    homography: list[list[float]]
+    #: The site origin those metres are measured from.
+    origin: GeoPoint
+    calibration_method: str
+    calibration_rms_m: NonNegative
+
+
 # ---------------------------------------------------------------------------
 # Decision -> clients
 # ---------------------------------------------------------------------------

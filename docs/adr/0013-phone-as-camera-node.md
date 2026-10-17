@@ -45,6 +45,15 @@ the local network.
 **A third-party IP-camera app remains supported** — it is just another URL — and is the
 fallback if the in-app camera misbehaves on a particular phone.
 
+**The camera says where it is looking.** After calibration the node publishes a
+retained `NodeView` on `pids/<site>/<node>/view`: the visible ground polygon in WGS84,
+the homography (image pixels to site metres) and the site origin. The console draws the
+real footprint instead of an idealised sector, and turns a click on the live preview
+into a point on the map — the camera image and the map are the same place, and an
+operator can say *that* corner, there. The polygon is traced by walking the image
+border, projecting each sample onto the floor and stepping down from any sample at or
+beyond the horizon until the projection is usable, then clipping at the node's range.
+
 ## Alternatives considered
 
 - *WebRTC from the app:* lower latency and NAT traversal, neither of which a single LAN

@@ -1,6 +1,10 @@
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, fireEvent, render, screen } from "@testing-library/react";
+import type { ReactElement } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { pids } from "../../lib/api";
+import { useLive } from "../../state/live";
 import { CameraPanel } from "./CameraPanel";
 
 const STREAM = "http://127.0.0.1:8090/stream.mjpg";
@@ -14,11 +18,19 @@ function advance(ms: number) {
   });
 }
 
+/** The panel asks the API where its camera is looking, so it needs query context. */
+function renderPanel(ui: ReactElement) {
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false, gcTime: 0, staleTime: Infinity } },
+  });
+  return render(<QueryClientProvider client={client}>{ui}</QueryClientProvider>);
+}
+
 const feed = () => screen.queryByRole("img");
 const status = () => screen.getByRole("status");
 
 function goLive() {
-  render(<CameraPanel url={STREAM} />);
+  renderPanel(<CameraPanel url={STREAM} />);
   const img = feed();
   if (!img) throw new Error("no feed");
   fireEvent.load(img);
@@ -46,7 +58,7 @@ describe("CameraPanel", () => {
   });
 
   it("embeds the edge preview as an image and goes live on the first frame", () => {
-    render(<CameraPanel url={STREAM} />);
+    renderPanel(<CameraPanel url={STREAM} />);
     const img = feed();
     expect(img).toHaveAttribute("src", STREAM);
     expect(status()).toHaveTextContent("connecting");
@@ -56,12 +68,12 @@ describe("CameraPanel", () => {
   });
 
   it("defaults to the edge node's loopback stream", () => {
-    render(<CameraPanel />);
+    renderPanel(<CameraPanel />);
     expect(feed()).toHaveAttribute("src", STREAM);
   });
 
   it("shows camera offline when the image errors, then retries every 3 s", () => {
-    render(<CameraPanel url={STREAM} />);
+    renderPanel(<CameraPanel url={STREAM} />);
     fireEvent.error(feed() as HTMLImageElement);
     expect(status()).toHaveTextContent("offline");
     expect(screen.getByText("Camera offline")).toBeInTheDocument();
@@ -83,14 +95,14 @@ describe("CameraPanel", () => {
   });
 
   it("retries at once on request", () => {
-    render(<CameraPanel url={STREAM} />);
+    renderPanel(<CameraPanel url={STREAM} />);
     fireEvent.error(feed() as HTMLImageElement);
     fireEvent.click(screen.getByRole("button", { name: "Retry now" }));
     expect(feed()).toHaveAttribute("src", `${STREAM}?attempt=1`);
   });
 
   it("gives up on a stream that never delivers a first frame", () => {
-    render(<CameraPanel url={STREAM} />);
+    renderPanel(<CameraPanel url={STREAM} />);
     advance(8000);
     expect(status()).toHaveTextContent("offline");
     expect(screen.getByText(/sending no frames/)).toBeInTheDocument();
@@ -129,7 +141,7 @@ describe("CameraPanel", () => {
   });
 
   it("does not probe sources other than an edge stream", () => {
-    render(<CameraPanel url="http://camera.local/video.cgi" />);
+    renderPanel(<CameraPanel url="http://camera.local/video.cgi" />);
     fireEvent.load(feed() as HTMLImageElement);
     advance(20_000);
     expect(probes).toHaveLength(0);
@@ -159,7 +171,7 @@ describe("CameraPanel", () => {
   });
 
   it("stops retrying while collapsed", () => {
-    render(<CameraPanel url={STREAM} />);
+    renderPanel(<CameraPanel url={STREAM} />);
     fireEvent.error(feed() as HTMLImageElement);
     fireEvent.click(screen.getByRole("button", { name: "Collapse" }));
     advance(30_000);
@@ -168,5 +180,100 @@ describe("CameraPanel", () => {
       "aria-expanded",
       "false",
     );
+  });
+});
+
+describe("locating a point from the camera image", () => {
+  const VIEW = {
+    schema_version: 1,
+    site_id: "demo-room",
+    node_id: "edge-01",
+    at: "2026-10-27T10:00:00Z",
+    image_size: [1280, 720],
+    homography: [
+      [0.022473367, -0.0, -14.382954926],
+      [-0.0, -0.010550607, 21.934834705],
+      [0.0, 0.007937122, 1.0],
+    ],
+    footprint: [
+      { lat: 13.262, lon: 77.42 },
+      { lat: 13.2621, lon: 77.42 },
+      { lat: 13.2621, lon: 77.4201 },
+    ],
+    origin: { lat: 13.262, lon: 77.42 },
+    calibration_method: "aruco",
+    calibration_rms_m: 0.02,
+  };
+
+  beforeEach(() => {
+    vi.useRealTimers();
+    useLive.getState().pin(null);
+    vi.spyOn(pids.api, "GET").mockResolvedValue({ data: [VIEW] });
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("pins where a clicked pixel is on the ground", async () => {
+    renderPanel(<CameraPanel url={STREAM} siteId="demo-room" />);
+    const img = feed() as HTMLImageElement;
+    fireEvent.load(img);
+    // the hint appears once the console knows where this camera is looking
+    expect(await screen.findByText(/Click the image/)).toBeInTheDocument();
+
+    // jsdom gives every element a zero box, so state the drawn area explicitly
+    vi.spyOn(img, "getBoundingClientRect").mockReturnValue({
+      left: 0,
+      top: 0,
+      width: 1280,
+      height: 720,
+      right: 1280,
+      bottom: 720,
+      x: 0,
+      y: 0,
+      toJSON: () => ({}),
+    });
+    fireEvent.click(img, { clientX: 640, clientY: 713 });
+
+    const pinned = useLive.getState().pinned;
+    expect(pinned?.lngLat[1]).toBeGreaterThan(VIEW.origin.lat); // north of the origin
+    expect(pinned?.label).toMatch(/m E, 2\.\d m N/);
+    expect(screen.getByText(/13\.2620\d\d, 77\.4200\d\d/)).toBeInTheDocument();
+  });
+
+  it("says so when the click is above the horizon", async () => {
+    // A shallower camera (15 deg down) puts the horizon at row ~115, inside the frame.
+    const shallow = {
+      ...VIEW,
+      homography: [
+        [-0.022488308, -0.0, 14.392517132],
+        [-0.0, 0.005820402, -21.949606989],
+        [0.0, -0.008688815, 1.0],
+      ],
+    };
+    vi.spyOn(pids.api, "GET").mockResolvedValue({ data: [shallow] });
+    renderPanel(<CameraPanel url={STREAM} siteId="demo-room" />);
+    const img = feed() as HTMLImageElement;
+    fireEvent.load(img);
+    await screen.findByText(/Click the image/);
+    vi.spyOn(img, "getBoundingClientRect").mockReturnValue({
+      left: 0,
+      top: 0,
+      width: 1280,
+      height: 720,
+      right: 1280,
+      bottom: 720,
+      x: 0,
+      y: 0,
+      toJSON: () => ({}),
+    });
+
+    fireEvent.click(img, { clientX: 640, clientY: 700 }); // floor, well below the horizon
+    expect(useLive.getState().pinned).not.toBeNull();
+
+    fireEvent.click(img, { clientX: 640, clientY: 40 }); // sky, above row 115
+    expect(useLive.getState().pinned).toBeNull();
+    expect(screen.getByText(/above the horizon/)).toBeInTheDocument();
   });
 });

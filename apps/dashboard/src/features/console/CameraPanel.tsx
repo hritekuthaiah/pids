@@ -1,7 +1,9 @@
 import clsx from "clsx";
-import { useEffect, useId, useState } from "react";
+import { useEffect, useId, useState, type MouseEvent } from "react";
 
 import { Panel } from "../../components/ui";
+import { imageSize, previewPointToLngLat, useNodeViews } from "../../lib/views";
+import { useLive } from "../../state/live";
 import { PhoneCameras } from "./PhoneCameras";
 import { EDGE_PREVIEW_URL, attemptUrl, snapshotUrl } from "../../lib/camera";
 
@@ -109,11 +111,59 @@ function useFeed(url: string, shown: boolean) {
   };
 }
 
+/**
+ * Click a point in the camera image to find it on the map: the edge node publishes the
+ * homography it calibrated, so the console can map that pixel onto the ground (ADR-0013).
+ * Pixels above the horizon have no ground position, and say so.
+ */
+function useLocateInImage(siteId: string | undefined, nodeId: string) {
+  const views = useNodeViews(siteId ?? "");
+  const pin = useLive((s) => s.pin);
+  const [message, setMessage] = useState<string | null>(null);
+  const view = views.data?.find((v) => v.node_id === nodeId);
+
+  return {
+    ready: view !== undefined,
+    message,
+    onClick: (event: MouseEvent<HTMLImageElement>) => {
+      if (!view) return;
+      // object-contain letterboxes the frame; measure against the drawn image, not the box
+      const box = event.currentTarget.getBoundingClientRect();
+      const [imgW, imgH] = imageSize(view);
+      const scale = Math.min(box.width / imgW, box.height / imgH);
+      const drawn = { w: imgW * scale, h: imgH * scale };
+      const x = (event.clientX - box.left - (box.width - drawn.w) / 2) / drawn.w;
+      const y = (event.clientY - box.top - (box.height - drawn.h) / 2) / drawn.h;
+      if (x < 0 || x > 1 || y < 0 || y > 1) return;
+      const hit = previewPointToLngLat(view, x, y);
+      if (!hit) {
+        pin(null);
+        setMessage("That is above the horizon — no point on the ground.");
+        return;
+      }
+      pin({ lngLat: hit.lngLat, label: `${hit.east.toFixed(1)} m E, ${hit.north.toFixed(1)} m N` });
+      setMessage(
+        `${hit.lngLat[1].toFixed(6)}, ${hit.lngLat[0].toFixed(6)} · ` +
+          `${hit.east.toFixed(1)} m E, ${hit.north.toFixed(1)} m N from the site origin`,
+      );
+    },
+  };
+}
+
 /** The edge node's annotated preview, embedded as an MJPEG <img> (ADR-0011). */
-export function CameraPanel({ url = EDGE_PREVIEW_URL, siteId }: { url?: string; siteId?: string }) {
+export function CameraPanel({
+  url = EDGE_PREVIEW_URL,
+  siteId,
+  nodeId = "edge-01",
+}: {
+  url?: string;
+  siteId?: string;
+  nodeId?: string;
+}) {
   const [shown, setShown] = useState(true);
   const feed = useFeed(url, shown);
   const bodyId = useId();
+  const locate = useLocateInImage(siteId, nodeId);
 
   return (
     <Panel
@@ -162,9 +212,11 @@ export function CameraPanel({ url = EDGE_PREVIEW_URL, siteId }: { url?: string; 
                 className={clsx(
                   "absolute inset-0 size-full object-contain",
                   feed.state === "connecting" && "invisible",
+                  locate.ready && "cursor-crosshair",
                 )}
                 onLoad={feed.onLoad}
                 onError={feed.onError}
+                onClick={locate.onClick}
               />
             )}
             {feed.state === "connecting" && (
@@ -202,6 +254,11 @@ export function CameraPanel({ url = EDGE_PREVIEW_URL, siteId }: { url?: string; 
           </p>
         )}
       </div>
+      {locate.ready && (
+        <p className="border-t border-line px-3 py-1.5 text-[11px] text-fg-dim">
+          {locate.message ?? "Click the image to put that spot on the map."}
+        </p>
+      )}
       {siteId !== undefined && <PhoneCameras siteId={siteId} />}
     </Panel>
   );
