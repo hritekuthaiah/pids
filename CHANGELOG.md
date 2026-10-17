@@ -1,5 +1,19 @@
 # Changelog
 
+## [1.2.0](https://github.com/hritekuthaiah/pids/compare/v1.1.0...v1.2.0) (2026-10-17)
+
+
+### Features
+
+* **console:** put the site on the real spot and edit zones by coordinates ([156256f](https://github.com/hritekuthaiah/pids/commit/156256fad5731587b0623f4a45eb64fcdc3e3684))
+
+
+### Documentation
+
+* **demo:** rewrite the demo script for the phone camera, live zones and footprints ([bde1938](https://github.com/hritekuthaiah/pids/commit/bde1938c99dcb9b9e09e2e463f60da2fe3b7cf33))
+* how to put the site on the real room and keep it ([600363a](https://github.com/hritekuthaiah/pids/commit/600363a086d1585b4f9b5a633cc60401d2c82218))
+* **runbook:** bring demo-day runbook forward for the phone camera, live zones and footprints ([32abab2](https://github.com/hritekuthaiah/pids/commit/32abab20eaf421846328669b0da6cf251b5684dc))
+
 ## [1.1.0](https://github.com/hritekuthaiah/pids/compare/v1.0.0...v1.1.0) (2026-10-17)
 
 
