@@ -800,10 +800,19 @@ export interface components {
          * @description Zones exactly as they should be after the edit; anything omitted is deleted.
          *
          *     ``origin`` moves the site's local frame. Zones arrive in WGS84 either way, so they
-         *     stay on the ground; everything else in the site file is converted to the new frame.
+         *     stay on the ground. By default everything else in the site file is converted to the
+         *     new frame so it too stays on the same ground (a re-frame). With ``relocate`` the
+         *     whole site is being moved instead — nodes, readers and features keep their local
+         *     metres and travel with the zones, which is what putting a placeholder site on its
+         *     real location needs.
          */
         GeometryIn: {
             origin?: components["schemas"]["OriginIn"] | null;
+            /**
+             * Relocate
+             * @default false
+             */
+            relocate: boolean;
             /** Zones */
             zones: components["schemas"]["ZoneIn"][];
         };

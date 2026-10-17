@@ -1,7 +1,14 @@
 import { describe, expect, it } from "vitest";
 
 import { assessment } from "../../test/fixtures";
-import { bounds, headingDeg, offsetMetres, predictedBreachPoint } from "./geo";
+import {
+  bounds,
+  headingDeg,
+  metresPerDegree,
+  offsetMetres,
+  predictedBreachPoint,
+  translateRing,
+} from "./geo";
 
 describe("map geometry", () => {
   it("offsets ~111 km per degree of latitude", () => {
@@ -62,5 +69,47 @@ describe("map geometry", () => {
       [1, 2],
       [3, 5],
     ]);
+  });
+
+  it("knows how long a degree is", () => {
+    // reference values for the WGS84 ellipsoid
+    expect(metresPerDegree(0).lat).toBeCloseTo(110_574, -1);
+    expect(metresPerDegree(13.262).lat).toBeCloseTo(110_633, -1);
+    expect(metresPerDegree(13.262).lon).toBeCloseTo(108_366, -1);
+    expect(metresPerDegree(45).lon).toBeCloseTo(78_847, -1);
+  });
+
+  it("carries a ring to a new origin without changing its size", () => {
+    const from = { lat: 13.262, lon: 77.42 };
+    const to = { lat: 28.6139, lon: 77.209 }; // a different latitude: degrees of longitude shrink
+    const at = metresPerDegree(from.lat);
+    const room: [number, number][] = [
+      [from.lon, from.lat],
+      [from.lon + 8 / at.lon, from.lat],
+      [from.lon + 8 / at.lon, from.lat + 6 / at.lat],
+      [from.lon, from.lat + 6 / at.lat],
+    ];
+    const moved = translateRing(room, from, to);
+    expect(moved[0]?.[0]).toBeCloseTo(to.lon, 9);
+    expect(moved[0]?.[1]).toBeCloseTo(to.lat, 9);
+    // still 8 m east and 6 m north of the origin, measured in the new place
+    const there = metresPerDegree(to.lat);
+    expect(((moved[2]?.[0] ?? 0) - to.lon) * there.lon).toBeCloseTo(8, 6);
+    expect(((moved[2]?.[1] ?? 0) - to.lat) * there.lat).toBeCloseTo(6, 6);
+  });
+
+  it("is undone by carrying it back", () => {
+    const a = { lat: 13.262, lon: 77.42 };
+    const b = { lat: 13.1, lon: 77.5 };
+    const ring: [number, number][] = [
+      [77.42, 13.262],
+      [77.4201, 13.262],
+      [77.4201, 13.2621],
+    ];
+    const back = translateRing(translateRing(ring, a, b), b, a);
+    for (const [i, p] of ring.entries()) {
+      expect(back[i]?.[0]).toBeCloseTo(p[0], 7);
+      expect(back[i]?.[1]).toBeCloseTo(p[1], 7);
+    }
   });
 });

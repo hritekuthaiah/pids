@@ -8,6 +8,7 @@ from pathlib import Path
 
 import aiomqtt
 import pytest
+import yaml
 from httpx import AsyncClient
 
 from pids_core.contracts import (
@@ -20,11 +21,13 @@ from pids_core.contracts import (
     ThreatLevel,
     ZoneKind,
 )
+from pids_core.geo import LocalFrame
 from pids_core.site import SiteConfig
+from pids_server.admin import site_yaml
 from pids_server.db.session import Database
 from pids_server.decision.recorder import record_event
 from pids_server.settings import Settings
-from pids_server.site_store import active_site_id, upsert_site
+from pids_server.site_store import active_site_id, load_site_config, upsert_site
 from server_helpers import PASSWORD, bearer, login
 
 pytestmark = pytest.mark.integration
@@ -176,6 +179,13 @@ def _zone(zid: str, kind: str, lon: float, lat: float, size: float = 0.0004) -> 
 
 #: site-alpha's crate-07 tag calls the armoury home, so every valid edit keeps one.
 ARMOURY = _zone("armoury", "containment", 77.4208, 13.2608, 0.0002)
+ARMOURY_AT_NEW_SPOT = _zone("armoury", "containment", 77.5008, 13.1008, 0.0002)
+
+
+def _enu(frame: LocalFrame, lon_lat: list[float]) -> tuple[float, float]:
+    lon, lat = lon_lat
+    p = frame.to_enu(lat, lon)
+    return p.east, p.north
 
 
 async def test_an_admin_redraws_the_zones_and_the_site_follows(client: AsyncClient) -> None:
@@ -225,6 +235,79 @@ async def test_moving_the_origin_keeps_the_cameras_on_the_ground(client: AsyncCl
     lon_a, lat_a = node_after["geometry"]["coordinates"]
     assert abs(lon_a - lon_b) < 1e-6
     assert abs(lat_a - lat_b) < 1e-6
+
+
+async def test_relocating_the_site_carries_the_cameras_with_it(client: AsyncClient) -> None:
+    """Placing a placeholder site on its real spot moves nodes and zones together."""
+    admin = await login(client, "admin@test.local")
+    before = (await client.get("/api/v1/sites/site-alpha", headers=bearer(admin))).json()
+    node_before = next(f for f in before["geojson"]["features"] if f.get("id") == "node:edge-01")
+    old = LocalFrame(13.2620, 77.4200)
+    east_b, north_b = _enu(old, node_before["geometry"]["coordinates"])
+
+    new_origin = {"lat": 13.1000, "lon": 77.5000}
+    body = {
+        "origin": new_origin,
+        "relocate": True,
+        "zones": [_zone("secure-core", "critical", 77.5005, 13.1005), ARMOURY_AT_NEW_SPOT],
+    }
+    r = await client.put("/api/v1/sites/site-alpha/geometry", json=body, headers=bearer(admin))
+    assert r.status_code == 200, r.text
+    after = r.json()
+    assert after["center"] == [77.5, 13.1]
+    node_after = next(f for f in after["geojson"]["features"] if f.get("id") == "node:edge-01")
+    east_a, north_a = _enu(LocalFrame(13.1000, 77.5000), node_after["geometry"]["coordinates"])
+    # the camera kept its place in the site's frame, so it travelled with the site
+    assert abs(east_a - east_b) < 0.05
+    assert abs(north_a - north_b) < 0.05
+
+
+async def test_an_exported_site_loads_back_as_it_was_edited(
+    client: AsyncClient, db: Database
+) -> None:
+    """`make site-export` must hand the edge node exactly what the console saved."""
+    admin = await login(client, "admin@test.local")
+    body = {
+        "origin": {"lat": 13.1, "lon": 77.5},
+        "relocate": True,
+        "zones": [_zone("secure-core", "critical", 77.5005, 13.1005), ARMOURY_AT_NEW_SPOT],
+    }
+    assert (
+        await client.put("/api/v1/sites/site-alpha/geometry", json=body, headers=bearer(admin))
+    ).status_code == 200
+    async with db.session() as session:
+        stored = await load_site_config(session, "site-alpha")
+    text = site_yaml(stored)
+    assert text.startswith("# Exported")
+    assert SiteConfig.model_validate(yaml.safe_load(text)) == stored
+    assert stored.site.origin.lat == 13.1
+
+
+async def test_redrawing_a_zone_keeps_its_notification_actions(client: AsyncClient) -> None:
+    """The console cannot edit actions, so saving a zone must not wipe them."""
+    admin = await login(client, "admin@test.local")
+    before = (await client.get("/api/v1/sites/site-alpha", headers=bearer(admin))).json()
+    want = next(z["actions"] for z in before["zones"] if z["id"] == "compound-critical")
+    assert "email" in want["critical"]
+
+    body = {
+        "zones": [
+            {
+                "id": "compound-critical",
+                "name": "Compound",
+                "kind": "critical",
+                "ring": _square(77.4205, 13.2605),
+            },
+            ARMOURY,
+        ]
+    }
+    r = await client.put("/api/v1/sites/site-alpha/geometry", json=body, headers=bearer(admin))
+    assert r.status_code == 200, r.text
+    after = next(z for z in r.json()["zones"] if z["id"] == "compound-critical")
+    assert after["actions"] == want
+    # every zone the console re-sends keeps its own, not just the one that was redrawn
+    armoury_before = next(z["actions"] for z in before["zones"] if z["id"] == "armoury")
+    assert next(z for z in r.json()["zones"] if z["id"] == "armoury")["actions"] == armoury_before
 
 
 async def test_the_last_critical_zone_cannot_be_deleted(client: AsyncClient) -> None:

@@ -59,10 +59,15 @@ class GeometryIn(BaseModel):
     """Zones exactly as they should be after the edit; anything omitted is deleted.
 
     ``origin`` moves the site's local frame. Zones arrive in WGS84 either way, so they
-    stay on the ground; everything else in the site file is converted to the new frame.
+    stay on the ground. By default everything else in the site file is converted to the
+    new frame so it too stays on the same ground (a re-frame). With ``relocate`` the
+    whole site is being moved instead — nodes, readers and features keep their local
+    metres and travel with the zones, which is what putting a placeholder site on its
+    real location needs.
     """
 
     origin: OriginIn | None = None
+    relocate: bool = False
     zones: Annotated[list[ZoneIn], Field(min_length=1, max_length=64)]
 
 
@@ -240,6 +245,7 @@ async def put_geometry(
     moved = (origin.lat, origin.lon) != (cfg.site.origin.lat, cfg.site.origin.lon)
 
     raw: dict[str, Any] = cfg.model_dump(mode="json")
+    kept = {z["id"]: z["actions"] for z in raw["zones"]}
     raw["site"]["origin"] = {"lat": origin.lat, "lon": origin.lon}
     raw["zones"] = [
         {
@@ -247,11 +253,13 @@ async def put_geometry(
             "name": z.name,
             "kind": z.kind.value,
             "polygon": _to_local(new, z.ring),
-            "actions": z.actions,
+            # the console has no editor for notification actions, so a zone it re-sends
+            # bare keeps the ones the site file gave it
+            "actions": z.actions or kept.get(z.id, {}),
         }
         for z in body.zones
     ]
-    if moved:  # keep nodes, readers and features on the same ground
+    if moved and not body.relocate:  # keep nodes, readers and features on the same ground
         for node in raw["nodes"]:
             node["position"] = _remap(old, new, [node["position"]])[0]
         for reader in raw["readers"]:
@@ -274,6 +282,7 @@ async def put_geometry(
         request,
         zones=[z.id for z in body.zones],
         origin_moved=moved,
+        relocated=moved and body.relocate,
     )
     await session.commit()
     await redis.publish(bus.config_channel(site_id), b"geometry")

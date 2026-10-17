@@ -13,6 +13,37 @@ export function offsetMetres(
   return [lon + east / mPerDegLon, lat + north / M_PER_DEG_LAT];
 }
 
+/**
+ * Metres in one degree of latitude and of longitude at a latitude (WGS84 series), good
+ * to about a millimetre across a site. `offsetMetres` above is the quick spherical
+ * version for drawing; relocation needs this one so a room stays the size it was.
+ */
+export function metresPerDegree(lat: number): { lat: number; lon: number } {
+  const p = (lat * Math.PI) / 180;
+  return {
+    lat: 111_132.92 - 559.82 * Math.cos(2 * p) + 1.175 * Math.cos(4 * p) - 0.0023 * Math.cos(6 * p),
+    lon: 111_412.84 * Math.cos(p) - 93.5 * Math.cos(3 * p) + 0.118 * Math.cos(5 * p),
+  };
+}
+
+/**
+ * Carry a ring from one site origin to another, keeping its shape and size in metres:
+ * each corner's east/north offset from `from` is laid down again from `to`. Used when
+ * the whole site is relocated, so zones stay the size they were drawn at.
+ */
+export function translateRing(
+  ring: [number, number][],
+  from: { lat: number; lon: number },
+  to: { lat: number; lon: number },
+): [number, number][] {
+  const a = metresPerDegree(from.lat);
+  const b = metresPerDegree(to.lat);
+  return ring.map(([lon, lat]) => [
+    to.lon + ((lon - from.lon) * a.lon) / b.lon,
+    to.lat + ((lat - from.lat) * a.lat) / b.lat,
+  ]);
+}
+
 /** Where a constant-velocity entity crosses into the core, if a breach is forecast. */
 export function predictedBreachPoint(a: ThreatAssessment): [number, number] | null {
   const ttb = a.time_to_breach_s;

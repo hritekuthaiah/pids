@@ -6,6 +6,11 @@ pids-admin seed --site config/sites/site-alpha.yaml
     passwords are read from SEED_*_PASSWORD environment variables (generated
     into .env by `make env`). Passwords are never printed.
 pids-admin create-user --email E --name N --role guard [--tag T] --password-env VAR
+pids-admin export-site --site demo-room
+    Print the stored site (zones, origin, nodes, live tag registry) as the YAML file
+    the edge nodes read. Zones drawn in the console live in the database only, and
+    `seed` rewrites the database from the file on every start, so export them with
+    `make site-export` to keep them and to give the camera node the same origin.
 """
 
 from __future__ import annotations
@@ -16,6 +21,7 @@ import os
 import sys
 from pathlib import Path
 
+import yaml
 from sqlalchemy import select
 
 from pids_core.site import SiteConfig
@@ -23,7 +29,7 @@ from pids_server.db import models as m
 from pids_server.db.session import Database
 from pids_server.security import hash_password
 from pids_server.settings import get_settings
-from pids_server.site_store import upsert_site
+from pids_server.site_store import load_site_config, upsert_site
 
 DEMO_USERS = [
     ("admin@pids.local", "Site Administrator", m.Role.ADMIN, None, "SEED_ADMIN_PASSWORD"),
@@ -126,6 +132,29 @@ async def reset_site(site_id: str) -> None:
     sys.stdout.write(f"reset {site_id}: {counts}\n")
 
 
+EXPORT_HEADER = """\
+# Exported from the running system by `make site-export` (pids-admin export-site).
+# Local metres relative to `origin`: east along x, north along y. This file is what
+# the edge nodes read and what `pids-admin seed` loads on every start, so it is the
+# copy that survives a restart.
+"""
+
+
+def site_yaml(cfg: SiteConfig) -> str:
+    """A site as YAML that ``SiteConfig.from_yaml`` loads back unchanged."""
+    body = yaml.safe_dump(cfg.model_dump(mode="json"), sort_keys=False, allow_unicode=True)
+    return EXPORT_HEADER + body
+
+
+async def export_site(site_id: str) -> str:
+    db = Database(get_settings().database_url)
+    try:
+        async with db.session() as s:
+            return site_yaml(await load_site_config(s, site_id))
+    finally:
+        await db.dispose()
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(prog="pids-admin", description=__doc__)
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -139,6 +168,8 @@ def main(argv: list[str] | None = None) -> int:
     u.add_argument("--password-env", required=True)
     rs = sub.add_parser("reset-site")
     rs.add_argument("--site", required=True)
+    ex = sub.add_parser("export-site")
+    ex.add_argument("--site", required=True)
     ip = sub.add_parser("index-procedures")
     ip.add_argument("--dir", type=Path, default=Path("config/sops"))
     args = ap.parse_args(argv)
@@ -146,6 +177,12 @@ def main(argv: list[str] | None = None) -> int:
         asyncio.run(seed(args.site))
     elif args.cmd == "reset-site":
         asyncio.run(reset_site(args.site))
+    elif args.cmd == "export-site":
+        try:
+            sys.stdout.write(asyncio.run(export_site(args.site)))
+        except LookupError as exc:
+            sys.stderr.write(f"{exc}\n")
+            return 1
     elif args.cmd == "index-procedures":
         asyncio.run(index_procedures(args.dir))
     else:

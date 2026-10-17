@@ -7,8 +7,14 @@
  * them when it converts to the site's local metres.
  */
 
+import { translateRing } from "./geo";
+
 export type ZoneKind = "warning" | "critical" | "containment";
 export type LngLat = [number, number];
+export interface Origin {
+  lat: number;
+  lon: number;
+}
 
 export interface Draft {
   id: string;
@@ -27,7 +33,14 @@ export interface EditorState {
   /** True while the operator is picking a new site origin on the map. */
   placing: boolean;
   /** The origin they picked, in WGS84, or null to leave the site where it is. */
-  origin: { lat: number; lon: number } | null;
+  origin: Origin | null;
+  /** The site's origin as stored when editing began; null if unknown (tests, loading). */
+  siteOrigin: Origin | null;
+  /**
+   * Whether picking a new origin moves the whole site, zones included (a relocation),
+   * or only re-anchors the site's frame while the zones stay on the ground they cover.
+   */
+  carry: boolean;
 }
 
 export const KIND_LABEL: Record<ZoneKind, string> = {
@@ -39,7 +52,7 @@ export const KIND_LABEL: Record<ZoneKind, string> = {
 /** The smallest polygon worth keeping: three distinct corners. */
 export const MIN_VERTICES = 3;
 
-export function initial(drafts: Draft[] = []): EditorState {
+export function initial(drafts: Draft[] = [], siteOrigin: Origin | null = null): EditorState {
   return {
     drafts,
     drawing: null,
@@ -48,7 +61,14 @@ export function initial(drafts: Draft[] = []): EditorState {
     dirty: false,
     placing: false,
     origin: null,
+    siteOrigin,
+    carry: true,
   };
+}
+
+/** Where the site's frame is anchored right now: the picked origin, else the stored one. */
+export function effectiveOrigin(state: EditorState): Origin | null {
+  return state.origin ?? state.siteOrigin;
 }
 
 /** "Secure core" -> "secure-core"; ids must match the server's zone id pattern. */
@@ -68,7 +88,7 @@ export function slugify(name: string, taken: Iterable<string> = []): string {
 }
 
 export type Action =
-  | { t: "load"; drafts: Draft[] }
+  | { t: "load"; drafts: Draft[]; siteOrigin?: Origin | null }
   | { t: "draw"; kind: ZoneKind }
   | { t: "vertex"; at: LngLat }
   | { t: "undoVertex" }
@@ -81,7 +101,11 @@ export type Action =
   | { t: "rename"; id: string; name: string }
   | { t: "setKind"; id: string; kind: ZoneKind }
   | { t: "placeMode" }
-  | { t: "origin"; at: LngLat };
+  | { t: "origin"; at: LngLat }
+  | { t: "carry"; on: boolean }
+  | { t: "setVertex"; id: string; index: number; at: LngLat }
+  | { t: "insertVertex"; id: string; index: number }
+  | { t: "addZone"; kind: ZoneKind; ring: LngLat[] };
 
 function patch(state: EditorState, id: string, f: (d: Draft) => Draft): EditorState {
   return {
@@ -94,18 +118,67 @@ function patch(state: EditorState, id: string, f: (d: Draft) => Draft): EditorSt
 export function reduce(state: EditorState, action: Action): EditorState {
   switch (action.t) {
     case "load":
-      return initial(action.drafts);
+      return initial(action.drafts, action.siteOrigin ?? null);
     case "draw":
       return { ...state, drawing: [], drawKind: action.kind, selected: null, placing: false };
     case "placeMode":
       return { ...state, placing: !state.placing, drawing: null };
-    case "origin":
+    case "origin": {
+      const to: Origin = { lat: action.at[1], lon: action.at[0] };
+      const from = effectiveOrigin(state);
+      const moved = state.carry && from !== null;
       return {
         ...state,
         placing: false,
+        drawing: null,
         dirty: true,
-        origin: { lat: action.at[1], lon: action.at[0] },
+        origin: to,
+        drafts: moved
+          ? state.drafts.map((d) => ({ ...d, ring: translateRing(d.ring, from, to) }))
+          : state.drafts,
       };
+    }
+    case "carry":
+      return { ...state, carry: action.on };
+    case "setVertex":
+      return patch(state, action.id, (d) => ({
+        ...d,
+        ring: d.ring.map((p, i) => (i === action.index ? action.at : p)),
+      }));
+    case "insertVertex":
+      return patch(state, action.id, (d) => {
+        const a = d.ring[action.index];
+        const b = d.ring[(action.index + 1) % d.ring.length];
+        if (!a || !b) return d;
+        const mid: LngLat = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
+        return {
+          ...d,
+          ring: [...d.ring.slice(0, action.index + 1), mid, ...d.ring.slice(action.index + 1)],
+        };
+      });
+    case "addZone": {
+      if (action.ring.length < MIN_VERTICES) return state;
+      const n = state.drafts.filter((d) => d.kind === action.kind).length + 1;
+      const id = slugify(
+        `${KIND_LABEL[action.kind]} ${String(n)}`,
+        state.drafts.map((d) => d.id),
+      );
+      return {
+        ...state,
+        drafts: [
+          ...state.drafts,
+          {
+            id,
+            name: `${KIND_LABEL[action.kind]} ${String(n)}`,
+            kind: action.kind,
+            ring: action.ring,
+          },
+        ],
+        selected: id,
+        drawing: null,
+        dirty: true,
+      };
+    }
     case "vertex":
       return state.drawing ? { ...state, drawing: [...state.drawing, action.at] } : state;
     case "undoVertex":
@@ -217,10 +290,15 @@ export function areaM2(ring: LngLat[]): number {
   return Math.abs(sum) / 2;
 }
 
-/** The PUT body: zones as drawn, plus the origin when the operator moved the site. */
-export function toPayload(state: EditorState, origin?: { lat: number; lon: number }) {
+/**
+ * The PUT body: zones as drawn, plus the origin when the operator moved the site. A
+ * carried move is a relocation: the server then keeps cameras and readers at their place
+ * in the site's frame so they travel with the zones.
+ */
+export function toPayload(state: EditorState, origin?: Origin) {
   return {
     ...(origin ? { origin } : {}),
+    relocate: origin !== undefined && state.carry && state.siteOrigin !== null,
     zones: state.drafts.map((d) => ({
       id: d.id,
       name: d.name,

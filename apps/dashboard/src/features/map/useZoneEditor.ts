@@ -6,6 +6,7 @@
 import type { Map as MapLibreMap, MapMouseEvent } from "maplibre-gl";
 import { useCallback, useEffect, useReducer, useRef } from "react";
 
+import { bounds } from "./geo";
 import {
   MIN_VERTICES,
   initial,
@@ -15,6 +16,7 @@ import {
   type Draft,
   type EditorState,
   type LngLat,
+  type Origin,
   type ZoneKind,
 } from "./editor";
 
@@ -45,12 +47,19 @@ export interface ZoneEditor {
   remove: (id: string) => void;
   place: () => void;
   reset: (drafts: Draft[]) => void;
+  /** Anchor the site at a typed or located point (WGS84). */
+  setOrigin: (lat: number, lon: number) => void;
+  setCarry: (on: boolean) => void;
+  setCorner: (id: string, index: number, lat: number, lon: number) => void;
+  addCorner: (id: string, after: number) => void;
+  removeCorner: (id: string, index: number) => void;
+  addZone: (kind: ZoneKind, ring: LngLat[]) => void;
 }
 
 export function useZoneEditor(
   map: MapLibreMap | null,
   active: boolean,
-  initialDrafts: () => Draft[],
+  initialSite: () => { drafts: Draft[]; origin: Origin },
 ): ZoneEditor {
   const [state, dispatch] = useReducer(reduce, undefined, () => initial());
   // Handlers are registered once per activation and read the live state through a ref,
@@ -63,7 +72,8 @@ export function useZoneEditor(
   // ---- enter / leave edit mode
   useEffect(() => {
     if (!map || !active) return;
-    dispatch({ t: "load", drafts: initialDrafts() });
+    const site = initialSite();
+    dispatch({ t: "load", drafts: site.drafts, siteOrigin: site.origin });
     addEditorLayers(map);
     for (const id of LIVE_ZONE_LAYERS) {
       if (map.getLayer(id)) map.setLayoutProperty(id, "visibility", "none");
@@ -80,7 +90,7 @@ export function useZoneEditor(
         if (map.getLayer(id)) map.setLayoutProperty(id, "visibility", "visible");
       }
     };
-    // initialDrafts is read once per activation on purpose: edits must not be
+    // initialSite is read once per activation on purpose: edits must not be
     // clobbered by the site query refetching underneath the operator.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [map, active]);
@@ -91,6 +101,24 @@ export function useZoneEditor(
     setData(map, SHAPES, toGeoJSON(state));
     setData(map, VERTICES, vertexGeoJSON(state));
   }, [map, active, state]);
+
+  // ---- follow a relocation, so the operator sees where the site landed
+  useEffect(() => {
+    const to = state.origin;
+    if (!map || !active || !to || !state.carry) return;
+    const box = bounds(toGeoJSON(latest.current));
+    const [[west, south], [east, north]] = box;
+    if (Number.isFinite(west + south + east + north)) {
+      // the editing panel covers the left of the map; keep the zones clear of it
+      map.fitBounds(box, {
+        padding: { top: 64, bottom: 64, left: 384, right: 64 },
+        maxZoom: 20,
+        duration: 800,
+      });
+    } else {
+      map.flyTo({ center: [to.lon, to.lat], zoom: Math.max(map.getZoom(), 18), duration: 800 });
+    }
+  }, [map, active, state.origin, state.carry]);
 
   // ---- pointer and keyboard
   useEffect(() => {
@@ -193,6 +221,25 @@ export function useZoneEditor(
     }, []),
     reset: useCallback((drafts: Draft[]) => {
       dispatch({ t: "load", drafts });
+    }, []),
+    setOrigin: useCallback((lat: number, lon: number) => {
+      dispatch({ t: "origin", at: [lon, lat] });
+    }, []),
+    setCarry: useCallback((on: boolean) => {
+      dispatch({ t: "carry", on });
+    }, []),
+    setCorner: useCallback((id: string, index: number, lat: number, lon: number) => {
+      dispatch({ t: "setVertex", id, index, at: [lon, lat] });
+    }, []),
+    addCorner: useCallback((id: string, after: number) => {
+      dispatch({ t: "insertVertex", id, index: after });
+    }, []),
+    removeCorner: useCallback((id: string, index: number) => {
+      dispatch({ t: "select", id });
+      dispatch({ t: "deleteVertex", index });
+    }, []),
+    addZone: useCallback((kind: ZoneKind, ring: LngLat[]) => {
+      dispatch({ t: "addZone", kind, ring });
     }, []),
   };
 }

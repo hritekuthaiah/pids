@@ -790,7 +790,7 @@
         "type": "object"
       },
       "GeometryIn": {
-        "description": "Zones exactly as they should be after the edit; anything omitted is deleted.\n\n``origin`` moves the site's local frame. Zones arrive in WGS84 either way, so they\nstay on the ground; everything else in the site file is converted to the new frame.",
+        "description": "Zones exactly as they should be after the edit; anything omitted is deleted.\n\n``origin`` moves the site's local frame. Zones arrive in WGS84 either way, so they\nstay on the ground. By default everything else in the site file is converted to the\nnew frame so it too stays on the same ground (a re-frame). With ``relocate`` the\nwhole site is being moved instead \u2014 nodes, readers and features keep their local\nmetres and travel with the zones, which is what putting a placeholder site on its\nreal location needs.",
         "properties": {
           "origin": {
             "anyOf": [
@@ -801,6 +801,11 @@
                 "type": "null"
               }
             ]
+          },
+          "relocate": {
+            "default": false,
+            "title": "Relocate",
+            "type": "boolean"
           },
           "zones": {
             "items": {
