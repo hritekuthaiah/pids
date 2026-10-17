@@ -1,5 +1,24 @@
 # Changelog
 
+## [1.1.0](https://github.com/hritekuthaiah/pids/compare/v1.0.0...v1.1.0) (2026-10-17)
+
+
+### Features
+
+* **console:** draw and edit zones on the live map ([231dd68](https://github.com/hritekuthaiah/pids/commit/231dd6825986a9b4984ed1105ec41d106bd74318))
+* the system knows where each camera is looking ([4fd4086](https://github.com/hritekuthaiah/pids/commit/4fd40864ba381f07fd2179a9aa1cbde47aedf6d3))
+* use a spare phone as the camera node ([ba21535](https://github.com/hritekuthaiah/pids/commit/ba21535a6f967bed92a212ee811b5a18458c21ad))
+
+
+### Bug Fixes
+
+* **dashboard:** give the test ResizeObserver stub the real signature (CodeQL) ([50ffef3](https://github.com/hritekuthaiah/pids/commit/50ffef306901c17dc154dc9318f19dee9eab5a05))
+
+
+### Documentation
+
+* CLAUDE.md for live zone editing, phone cameras and camera views ([ef84afa](https://github.com/hritekuthaiah/pids/commit/ef84afaa7e1b5116cd64c6719c8b8645a9b46ba0))
+
 ## 1.0.0 (2026-10-16)
 
 
