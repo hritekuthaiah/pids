@@ -99,6 +99,14 @@ class AlertMessage(Out):
     alert: AlertOut
 
 
+class SiteChangedMessage(Out):
+    """The site's geometry was edited; clients refetch it."""
+
+    type: Literal["site_changed"] = "site_changed"
+    site_id: str
+    at: datetime
+
+
 class AlertsSnapshotMessage(Out):
     """Sent once on WebSocket connect: every open or acknowledged alert."""
 

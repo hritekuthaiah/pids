@@ -334,6 +334,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/sites/{site_id}/geometry": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Put Geometry
+         * @description Replace a site's zones (and optionally move its origin), live.
+         *
+         *     The decision engine picks the new geometry up without a restart, and every open
+         *     console is told to refetch. Deleting the last critical zone, or a containment zone
+         *     an asset tag still calls home, is refused: those are what CRITICAL means.
+         */
+        put: operations["put_geometry_api_v1_sites__site_id__geometry_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/sites/{site_id}/live": {
         parameters: {
             query?: never;
@@ -671,6 +695,18 @@ export interface components {
             /** Lon */
             lon: number;
         };
+        /**
+         * GeometryIn
+         * @description Zones exactly as they should be after the edit; anything omitted is deleted.
+         *
+         *     ``origin`` moves the site's local frame. Zones arrive in WGS84 either way, so they
+         *     stay on the ground; everything else in the site file is converted to the new frame.
+         */
+        GeometryIn: {
+            origin?: components["schemas"]["OriginIn"] | null;
+            /** Zones */
+            zones: components["schemas"]["ZoneIn"][];
+        };
         /** HTTPValidationError */
         HTTPValidationError: {
             /** Detail */
@@ -713,6 +749,13 @@ export interface components {
             email: string;
             /** Password */
             password: string;
+        };
+        /** OriginIn */
+        OriginIn: {
+            /** Lat */
+            lat: number;
+            /** Lon */
+            lon: number;
         };
         /** PushTokenIn */
         PushTokenIn: {
@@ -799,6 +842,25 @@ export interface components {
          * @enum {string}
          */
         Role: "admin" | "operator" | "guard";
+        /**
+         * SiteChangedMessage
+         * @description The site's geometry was edited; clients refetch it.
+         */
+        SiteChangedMessage: {
+            /**
+             * At
+             * Format: date-time
+             */
+            at: string;
+            /** Site Id */
+            site_id: string;
+            /**
+             * Type
+             * @default site_changed
+             * @constant
+             */
+            type: "site_changed";
+        };
         /** SiteSummary */
         SiteSummary: {
             /** Id */
@@ -991,6 +1053,26 @@ export interface components {
             east: number;
             /** North */
             north: number;
+        };
+        /**
+         * ZoneIn
+         * @description A zone as the operator drew it: a WGS84 ring of ``[lon, lat]`` vertices.
+         */
+        ZoneIn: {
+            /** Actions */
+            actions?: {
+                [key: string]: string[];
+            };
+            /** Id */
+            id: string;
+            kind: components["schemas"]["ZoneKind"];
+            /** Name */
+            name: string;
+            /** Ring */
+            ring: [
+                number,
+                number
+            ][];
         };
         /**
          * ZoneKind
@@ -1541,6 +1623,43 @@ export interface operations {
             cookie?: never;
         };
         requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    put_geometry_api_v1_sites__site_id__geometry_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                site_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GeometryIn"];
+            };
+        };
         responses: {
             /** @description Successful Response */
             200: {

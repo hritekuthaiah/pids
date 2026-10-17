@@ -19,6 +19,8 @@ export interface LiveData {
   tally: BaselineTally;
   serverAt: string | null;
   receivedAt: number | null;
+  /** Increments when an admin edits the site's zones, so the map refetches. */
+  siteRevision: number;
 }
 
 export const emptyLive: LiveData = {
@@ -28,6 +30,7 @@ export const emptyLive: LiveData = {
   tally: emptyTally,
   serverAt: null,
   receivedAt: null,
+  siteRevision: 0,
 };
 
 const ACTIVE = new Set(["open", "acknowledged"]);
@@ -53,6 +56,9 @@ export function reduce(state: LiveData, msg: ServerMessage, now: number = Date.n
       for (const a of msg.alerts) alerts[a.id] = a;
       return { ...state, alerts };
     }
+    case "site_changed":
+      // Bump a counter rather than hold geometry here: the site query owns that.
+      return { ...state, siteRevision: state.siteRevision + 1 };
     case "alert": {
       const { [msg.alert.id]: _previous, ...others } = state.alerts;
       const alerts = ACTIVE.has(msg.alert.status)

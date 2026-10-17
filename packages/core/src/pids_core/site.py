@@ -129,6 +129,13 @@ class SiteConfig(_Config):
         return cls.model_validate(raw)
 
 
+def _zone_index(config: SiteConfig) -> ZoneIndex:
+    return ZoneIndex(
+        Zone(id=z.id, name=z.name, kind=z.kind, polygon=polygon_from_points(z.polygon))
+        for z in config.zones
+    )
+
+
 class Site:
     """A loaded site: frame, zone index and registries, ready for the decision core."""
 
@@ -136,10 +143,7 @@ class Site:
         self.config = config
         self.id = config.site.id
         self.frame = LocalFrame(config.site.origin.lat, config.site.origin.lon)
-        self.zones = ZoneIndex(
-            Zone(id=z.id, name=z.name, kind=z.kind, polygon=polygon_from_points(z.polygon))
-            for z in config.zones
-        )
+        self.zones = _zone_index(config)
         self.tags: dict[str, TagConfig] = {t.id: t for t in config.tags}
         self.nodes: dict[str, NodeConfig] = {n.id: n for n in config.nodes}
         self.readers: dict[str, ReaderConfig] = {r.id: r for r in config.readers}
@@ -147,6 +151,24 @@ class Site:
     @classmethod
     def from_yaml(cls, path: str | Path) -> Site:
         return cls(SiteConfig.from_yaml(path))
+
+    def reload(self, config: SiteConfig) -> None:
+        """Adopt an edited configuration in place (zones, tags, nodes, readers).
+
+        The origin may not change: every live track's state is in metres relative to
+        this frame, so moving it would silently teleport everything. Moving a site is
+        a rebuild, not a reload.
+        """
+        if (config.site.origin.lat, config.site.origin.lon) != (
+            self.config.site.origin.lat,
+            self.config.site.origin.lon,
+        ):
+            raise ValueError("the site origin cannot change in place; rebuild the Site")
+        self.config = config
+        self.zones = _zone_index(config)
+        self.tags = {t.id: t for t in config.tags}
+        self.nodes = {n.id: n for n in config.nodes}
+        self.readers = {r.id: r for r in config.readers}
 
     def zone_config(self, zone_id: str) -> ZoneConfig:
         return next(z for z in self.config.zones if z.id == zone_id)

@@ -61,14 +61,22 @@ class DecisionService:
     def __init__(self, settings: Settings, site: Site, model: DecisionModel, scorer: Any) -> None:
         self.settings = settings
         self.site = site
-        self.engine = DecisionEngine(
-            site, model.engine_config(), anomaly_scorer=scorer, run_id=f"{int(time.time()):x}"
-        )
+        self.model = model
+        self.scorer = scorer
+        self.engine = self._build_engine(site)
         self.db = Database(settings.database_url)
         self.redis: Redis = Redis.from_url(settings.redis_url)
         self._last_live = 0.0
         self._last_obs = 0.0
         self._stop = asyncio.Event()
+
+    def _build_engine(self, site: Site) -> DecisionEngine:
+        return DecisionEngine(
+            site,
+            self.model.engine_config(),
+            anomaly_scorer=self.scorer,
+            run_id=f"{int(time.time()):x}",
+        )
 
     # ----------------------------------------------------------------- ingest
 
@@ -194,7 +202,7 @@ class DecisionService:
     # ----------------------------------------------------------------- config
 
     async def config_loop(self) -> None:
-        """Hot-reload the tag registry when an admin revokes or edits a tag."""
+        """Adopt edits an admin makes — revoked tags, redrawn zones — without a restart."""
         pubsub = self.redis.pubsub()
         await pubsub.subscribe(bus.config_channel(self.site.id))
         async for message in pubsub.listen():
@@ -202,9 +210,15 @@ class DecisionService:
                 continue
             async with self.db.session() as session:
                 cfg = await load_site_config(session, self.site.id)
-            self.engine.site.tags.clear()
-            self.engine.site.tags.update({t.id: t for t in cfg.tags})
-            log.info("tag registry reloaded", tags=len(cfg.tags))
+            try:
+                self.engine.refresh_site(cfg)
+                log.info("site reloaded", zones=len(cfg.zones), tags=len(cfg.tags))
+            except ValueError:
+                # The origin moved: every track's state is metres from the old frame,
+                # so there is nothing to carry over. Start clean rather than teleport.
+                self.site = Site(cfg)
+                self.engine = self._build_engine(self.site)
+                log.warning("site origin moved; engine rebuilt, live tracks dropped")
 
     async def run(self) -> None:
         loop = asyncio.get_running_loop()

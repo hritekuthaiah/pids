@@ -51,8 +51,9 @@ export interface SiteGeo {
 }
 
 export function useSite() {
+  const revision = useLive((s) => s.siteRevision);
   return useQuery({
-    queryKey: ["site"],
+    queryKey: ["site", revision],
     staleTime: Infinity,
     queryFn: async (): Promise<SiteGeo> => {
       const { data: sites } = await pids.api.GET("/api/v1/sites");

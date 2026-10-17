@@ -709,6 +709,35 @@
         "title": "GeoPoint",
         "type": "object"
       },
+      "GeometryIn": {
+        "description": "Zones exactly as they should be after the edit; anything omitted is deleted.\n\n``origin`` moves the site's local frame. Zones arrive in WGS84 either way, so they\nstay on the ground; everything else in the site file is converted to the new frame.",
+        "properties": {
+          "origin": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/OriginIn"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "zones": {
+            "items": {
+              "$ref": "#/components/schemas/ZoneIn"
+            },
+            "maxItems": 64,
+            "minItems": 1,
+            "title": "Zones",
+            "type": "array"
+          }
+        },
+        "required": [
+          "zones"
+        ],
+        "title": "GeometryIn",
+        "type": "object"
+      },
       "HTTPValidationError": {
         "properties": {
           "detail": {
@@ -822,6 +851,28 @@
           "password"
         ],
         "title": "LoginIn",
+        "type": "object"
+      },
+      "OriginIn": {
+        "properties": {
+          "lat": {
+            "maximum": 90.0,
+            "minimum": -90.0,
+            "title": "Lat",
+            "type": "number"
+          },
+          "lon": {
+            "maximum": 180.0,
+            "minimum": -180.0,
+            "title": "Lon",
+            "type": "number"
+          }
+        },
+        "required": [
+          "lat",
+          "lon"
+        ],
+        "title": "OriginIn",
         "type": "object"
       },
       "PushTokenIn": {
@@ -1019,6 +1070,33 @@
         ],
         "title": "Role",
         "type": "string"
+      },
+      "SiteChangedMessage": {
+        "description": "The site's geometry was edited; clients refetch it.",
+        "properties": {
+          "at": {
+            "format": "date-time",
+            "title": "At",
+            "type": "string"
+          },
+          "site_id": {
+            "title": "Site Id",
+            "type": "string"
+          },
+          "type": {
+            "const": "site_changed",
+            "default": "site_changed",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "site_id",
+          "at"
+        ],
+        "title": "SiteChangedMessage",
+        "type": "object"
       },
       "SiteSummary": {
         "properties": {
@@ -1535,6 +1613,62 @@
           "north"
         ],
         "title": "Velocity",
+        "type": "object"
+      },
+      "ZoneIn": {
+        "description": "A zone as the operator drew it: a WGS84 ring of ``[lon, lat]`` vertices.",
+        "properties": {
+          "actions": {
+            "additionalProperties": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "title": "Actions",
+            "type": "object"
+          },
+          "id": {
+            "pattern": "^[a-z0-9][a-z0-9-]{1,62}$",
+            "title": "Id",
+            "type": "string"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/ZoneKind"
+          },
+          "name": {
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "ring": {
+            "items": {
+              "maxItems": 2,
+              "minItems": 2,
+              "prefixItems": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "number"
+                }
+              ],
+              "type": "array"
+            },
+            "maxItems": 500,
+            "minItems": 3,
+            "title": "Ring",
+            "type": "array"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "kind",
+          "ring"
+        ],
+        "title": "ZoneIn",
         "type": "object"
       },
       "ZoneKind": {
@@ -2404,6 +2538,66 @@
           }
         ],
         "summary": "Get Site",
+        "tags": [
+          "sites"
+        ]
+      }
+    },
+    "/api/v1/sites/{site_id}/geometry": {
+      "put": {
+        "description": "Replace a site's zones (and optionally move its origin), live.\n\nThe decision engine picks the new geometry up without a restart, and every open\nconsole is told to refetch. Deleting the last critical zone, or a containment zone\nan asset tag still calls home, is refused: those are what CRITICAL means.",
+        "operationId": "put_geometry_api_v1_sites__site_id__geometry_put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "site_id",
+            "required": true,
+            "schema": {
+              "title": "Site Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GeometryIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Put Geometry Api V1 Sites  Site Id  Geometry Put",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Put Geometry",
         "tags": [
           "sites"
         ]

@@ -17,13 +17,19 @@ from fastapi.openapi.utils import get_openapi
 from pydantic import BaseModel
 
 from pids_server.api.main import create_app
-from pids_server.schemas import AlertMessage, AlertsSnapshotMessage, LiveMessage
+from pids_server.schemas import (
+    AlertMessage,
+    AlertsSnapshotMessage,
+    LiveMessage,
+    SiteChangedMessage,
+)
 from pids_server.settings import Settings
 
 WS_MESSAGES: dict[str, type[BaseModel]] = {
     "LiveMessage": LiveMessage,
     "AlertMessage": AlertMessage,
     "AlertsSnapshotMessage": AlertsSnapshotMessage,
+    "SiteChangedMessage": SiteChangedMessage,
 }
 
 
