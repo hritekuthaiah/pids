@@ -16,6 +16,7 @@ import { useEffect, useRef, useState } from "react";
 import { LEVEL_HEX } from "../../lib/format";
 import type { SiteGeo } from "../../lib/hooks";
 import { useLive } from "../../state/live";
+import { footprintGeoJSON, useNodeViews } from "../../lib/views";
 import { draftsFrom, toPayload } from "./editor";
 import { bounds, headingDeg, lerp, predictedBreachPoint } from "./geo";
 import { useSaveZones } from "./saveZones";
@@ -220,6 +221,21 @@ function addSiteLayers(map: MapLibreMap, site: SiteGeo): void {
     },
   });
 
+  const empty: GeoJSON.FeatureCollection = { type: "FeatureCollection", features: [] };
+  map.addSource("views", { type: "geojson", data: empty });
+  add({
+    id: "view-fill",
+    type: "fill",
+    source: "views",
+    paint: { "fill-color": "#6ff2a6", "fill-opacity": 0.07 },
+  });
+  add({
+    id: "view-line",
+    type: "line",
+    source: "views",
+    paint: { "line-color": "#6ff2a6", "line-opacity": 0.5, "line-width": 1.2 },
+  });
+
   map.addSource("trails", { type: "geojson", data: { type: "FeatureCollection", features: [] } });
   add({
     id: "trails",
@@ -317,6 +333,29 @@ export function MapView({ site, canEdit = false }: { site: SiteGeo; canEdit?: bo
     };
   }, [site]);
 
+  // ---- what the cameras actually see, from their calibrated homographies
+  const views = useNodeViews(site.id);
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !ready) return;
+    void map.getSource<GeoJSONSource>("views")?.setData(footprintGeoJSON(views.data ?? []));
+  }, [ready, views.data]);
+
+  // ---- a point picked in a camera image
+  const pinned = useLive((s) => s.pinned);
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !ready || !pinned) return;
+    const el = document.createElement("div");
+    el.className = "camera-pin";
+    el.title = pinned.label;
+    const marker = new Marker({ element: el }).setLngLat(pinned.lngLat).addTo(map);
+    map.easeTo({ center: pinned.lngLat, duration: 400 });
+    return () => {
+      marker.remove();
+    };
+  }, [ready, pinned]);
+
   // ---- basemap & layer toggles
   useEffect(() => {
     const map = mapRef.current;
@@ -324,7 +363,7 @@ export function MapView({ site, canEdit = false }: { site: SiteGeo; canEdit?: bo
     for (const b of ["dark", "streets", "satellite"] as const) {
       map.setLayoutProperty(b, "visibility", basemap === b ? "visible" : "none");
     }
-    for (const id of ["coverage-fill", "coverage-line"]) {
+    for (const id of ["coverage-fill", "coverage-line", "view-fill", "view-line"]) {
       map.setLayoutProperty(id, "visibility", showCoverage ? "visible" : "none");
     }
   }, [basemap, showCoverage, ready]);

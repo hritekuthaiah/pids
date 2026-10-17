@@ -25,6 +25,7 @@ from pids_core.contracts import (
     GeoPoint,
     NodeHealth,
     NodeStatus,
+    NodeView,
     TrackBatch,
     VisionTrack,
     ZoneKind,
@@ -34,7 +35,7 @@ from pids_core.site import NodeConfig, Site
 from pids_edge.camera import Frame, FrameSource
 from pids_edge.config import EdgeConfig
 from pids_edge.detector import Detector
-from pids_edge.ground import FloorFix, GroundPlane
+from pids_edge.ground import FloorFix, GroundPlane, footprint
 from pids_edge.preview import PreviewServer
 from pids_edge.publish import MqttPublisher
 from pids_edge.thermal import ThermalArray, relative_bearing, warm_at
@@ -97,6 +98,26 @@ class EdgeNode:
         self._here = Enu(*self.node.position)
         self._max_range = self.node.range_m * config.ground.max_range_factor
         self.thermal = thermal
+
+    def view(self) -> NodeView:
+        """What this camera can see on the ground, for the console to draw and click."""
+        poly = footprint(self.ground, self._here, self._max_range)
+        calib = self.ground.calibration
+        origin = self.site.config.site.origin
+        return NodeView(
+            site_id=self.site.id,
+            node_id=self.node.id,
+            at=datetime.now(UTC),
+            image_size=self.ground.frame_size,
+            footprint=[
+                GeoPoint(lat=lat, lon=lon)
+                for lat, lon in (self.site.frame.to_wgs84(p) for p in poly)
+            ],
+            homography=[[float(x) for x in row] for row in self.ground.matrix],
+            origin=GeoPoint(lat=origin.lat, lon=origin.lon),
+            calibration_method=calib.method,
+            calibration_rms_m=calib.rms_error_m,
+        )
 
     def _heat(self, heat: NDArray[np.float32] | None, at: Enu) -> bool | None:
         """Heat confirmation at a floor position; None without thermal coverage there."""
@@ -248,6 +269,7 @@ def run(
         signal.signal(sig, lambda *_: stop.set())
     tracks_topic = f"pids/{node.site.id}/{node.node.id}/tracks"
     health_topic = f"pids/{node.site.id}/{node.node.id}/health"
+    view_topic = f"pids/{node.site.id}/{node.node.id}/view"
     annotator = Annotator(node.site, node.ground, node.node.id) if preview else None
     rates = Rates()
     started = time.monotonic()
@@ -291,6 +313,9 @@ def run(
                 last_publish = now
             if publisher and now - last_health >= cfg.health_period_s:
                 publisher.publish(health_topic, health(NodeStatus.ONLINE), retain=True)
+                # Retained with it: where this camera is looking, so a console that
+                # connects later still knows, without waiting for the next frame.
+                publisher.publish(view_topic, node.view().model_dump_json().encode(), retain=True)
                 last_health = now
             if preview and annotator:
                 preview.status = {

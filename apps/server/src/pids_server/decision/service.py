@@ -28,6 +28,7 @@ from pids_core.contracts import (
     AlertEvent,
     AlertEventKind,
     GpsFix,
+    NodeView,
     TagRead,
     ThreatAssessment,
     TrackBatch,
@@ -42,7 +43,7 @@ from pids_server.schemas import AlertMessage, AlertOut, LiveMessage
 from pids_server.settings import Settings, get_settings
 from pids_server.site_store import active_site_id, load_site_config, site_ids
 
-_STREAMS = ("tracks", "gps", "sensors")
+_STREAMS = ("tracks", "gps", "sensors", "view")
 _TRACE_HOPS = [("captured", "received"), ("received", "decided"), ("captured", "decided")]
 
 
@@ -68,6 +69,7 @@ class DecisionService:
         self.redis: Redis = Redis.from_url(settings.redis_url)
         self._last_live = 0.0
         self._last_obs = 0.0
+        self._pending_views: list[bytes] = []
         self._stop = asyncio.Event()
 
     def _build_engine(self, site: Site) -> DecisionEngine:
@@ -82,6 +84,10 @@ class DecisionService:
 
     def _ingest(self, stream: str, payload: bytes) -> None:
         received = datetime.now(UTC)
+        if stream == "view":
+            self._pending_views.append(payload)
+            metrics.MESSAGES.labels(stream=stream, result="ok").inc()
+            return
         try:
             if stream == "tracks":
                 batch = TrackBatch.model_validate_json(payload)
@@ -140,6 +146,7 @@ class DecisionService:
             for a in result.assessments:
                 metrics.observe_trace(a.trace, _TRACE_HOPS)
             try:
+                await self._store_views()
                 await self._handle_events(result.events)
                 await self._publish_live(now, result.assessments)
                 await self._observe(result.assessments)
@@ -178,6 +185,24 @@ class DecisionService:
                 alert_id=ev.alert_id,
                 reason=ev.reason,
             )
+
+    async def _store_views(self) -> None:
+        """Keep each camera's footprint where the API can serve it to the console.
+
+        Validated here rather than on the ingest thread: a malformed view must not
+        take the perception path down with it.
+        """
+        views, self._pending_views = self._pending_views, []
+        for payload in views:
+            try:
+                view = NodeView.model_validate_json(payload)
+            except ValidationError as exc:
+                log.warning("invalid node view", errors=exc.error_count())
+                continue
+            if view.site_id != self.site.id:
+                continue
+            await self.redis.set(bus.view_key(view.site_id, view.node_id), view.model_dump_json())
+            log.info("camera view updated", node=view.node_id, points=len(view.footprint))
 
     async def _publish_live(self, now: datetime, assessments: list[ThreatAssessment]) -> None:
         t = time.monotonic()

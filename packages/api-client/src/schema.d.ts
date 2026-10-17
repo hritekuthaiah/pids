@@ -454,6 +454,30 @@ export interface paths {
         patch: operations["patch_tag_api_v1_sites__site_id__tags__tag_id__patch"];
         trace?: never;
     };
+    "/api/v1/sites/{site_id}/views": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Views
+         * @description Where each camera is actually looking: its ground footprint and pixel mapping.
+         *
+         *     Published by the edge nodes after calibration, so the console draws the real
+         *     visible area instead of an idealised sector, and can turn a point in a camera
+         *     image into a point on the map.
+         */
+        get: operations["list_views_api_v1_sites__site_id__views_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/health/live": {
         parameters: {
             query?: never;
@@ -825,6 +849,45 @@ export interface components {
             email: string;
             /** Password */
             password: string;
+        };
+        /**
+         * NodeView
+         * @description Where a camera is actually looking: its ground footprint and pixel mapping.
+         *
+         *     Published retained by the edge node after calibration, so the console can draw the
+         *     real visible area rather than an idealised sector, and can turn a point in the
+         *     camera image into a point on the map.
+         */
+        NodeView: {
+            /**
+             * At
+             * Format: date-time
+             */
+            at: string;
+            /** Calibration Method */
+            calibration_method: string;
+            /** Calibration Rms M */
+            calibration_rms_m: number;
+            /** Footprint */
+            footprint: components["schemas"]["GeoPoint"][];
+            /** Homography */
+            homography: number[][];
+            /** Image Size */
+            image_size: [
+                number,
+                number
+            ];
+            /** Node Id */
+            node_id: string;
+            origin: components["schemas"]["GeoPoint"];
+            /**
+             * Schema Version
+             * @default 1
+             * @constant
+             */
+            schema_version: 1;
+            /** Site Id */
+            site_id: string;
         };
         /** OriginIn */
         OriginIn: {
@@ -1913,6 +1976,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["TagOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_views_api_v1_sites__site_id__views_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                site_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NodeView"][];
                 };
             };
             /** @description Validation Error */
