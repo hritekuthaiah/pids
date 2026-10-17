@@ -39,8 +39,8 @@ rather than silently deviating.
 | `apps/server` (`pids_server`) | `pids-api` (FastAPI + WS), `pids-decision` (MQTT → engine), `pids-worker` (notifications), `pids-admin`; `agent/` = LLM triage, procedure retrieval, log questions (ADR-0007) |
 | `packages/api-client` | Generated TS types (`openapi.json` → `schema.d.ts`) + typed client + live WS helper |
 | `apps/dashboard` | React 19 + MapLibre control-room console; nginx image (`console` service) in production |
-| `apps/edge` (`pids_edge`) | Camera edge node: YOLO26n (ONNX Runtime) → ByteTrack → floor homography → MQTT, calibration tool, loopback MJPEG preview (ADR-0011) |
-| `apps/guard` | Expo SDK 58 Android guard app; `modules/pids-badge` = Kotlin BLE badge advertiser |
+| `apps/edge` (`pids_edge`) | Camera edge node: YOLO26n (ONNX Runtime) → ByteTrack → floor homography → MQTT, calibration tool, loopback MJPEG preview (ADR-0011); the camera may be a USB/built-in device or a phone's MJPEG stream (ADR-0013) |
+| `apps/guard` | Expo SDK 58 Android guard app; `modules/pids-badge` = Kotlin BLE badge advertiser, `modules/pids-camera` = Camera2 → MJPEG server so a spare phone *is* a camera node |
 | `config/sites/*.yaml` | Site geometry in local metres (single source of truth): `site-alpha` (simulated depot), `demo-room` (live demo) |
 | `config/edge/` | Per-node edge config, floor marks and calibration |
 | `config/sops/` | Illustrative site procedures indexed for the agent |
@@ -60,6 +60,7 @@ pnpm gen:api          # after any API/schema change — CI fails on stale types
 make train            # behaviour model + decision model (~2 min)
 make edge-model       # export YOLO26n to ONNX (isolated uvx env; PyTorch never enters the workspace)
 make edge             # camera edge node against the stack; preview http://127.0.0.1:8090/stream.mjpg
+PIDS_EDGE_SOURCE=http://<phone-ip>:8080/stream.mjpg make edge   # use a phone as the camera (ADR-0013)
 PIDS_SITE_CONFIG=config/sites/demo-room.yaml make up-all   # make the demo room the live site
 make demo / demo-reset   # live demo bring-up (LAN, TLS, console :8080) / clean slate between rehearsals
 make eval / edge-eval    # held-out evaluation report / detector accuracy + benchmarks
@@ -69,7 +70,7 @@ make gps-probe           # identify a plugged-in GPS module
 
 Demo logins are the `SEED_*` passwords in `.env` (never print them).
 
-## Current state (16 Oct 2026)
+## Current state (17 Oct 2026)
 
 - **v1.0.0 released and tagged (17 Oct).** All milestones M0–M8 merged.
   - Decision core: held-out Pd 99.3% (139/140), 82% fewer nuisance alarms than
@@ -82,6 +83,22 @@ Demo logins are the `SEED_*` passwords in `.env` (never print them).
   - Observability.
   - MQTT TLS.
   - Demo kit.
+- **Since v1.0.0 (all merged to `main`):**
+  - **Live zone editing.** Operators draw and edit zones on the real basemap and save
+    them without a restart — `PUT /api/v1/sites/{id}/geometry` (admin, audited)
+    rewrites the stored SiteConfig and the PostGIS rows, `Site.reload` /
+    `DecisionEngine.refresh_site` adopt them in place (tracks, alerts and badge links
+    survive), and a `site_changed` WebSocket message makes every console refetch.
+    Moving the site origin re-frames nodes, readers and features so they stay on the
+    same ground, and rebuilds the engine (live tracks drop).
+  - **Phone as camera node (ADR-0013).** A spare Android phone's `pids-camera`
+    foreground service streams MJPEG on the LAN; the edge node opens that URL exactly
+    as it opens a webcam. No laptop webcam needed, nothing recorded on the phone, and
+    no video reaches the server.
+  - **The system knows where each camera looks.** Each node publishes a `NodeView` —
+    the visible ground footprint in WGS84, the image→metres homography and the site
+    origin — so the map draws the real footprint and clicking the live preview pins
+    that pixel's position on the map.
 - **Still needs a human:**
   - paste `ANTHROPIC_API_KEY` into `.env`
   - install the guard APK on phones (USB debugging)
@@ -92,12 +109,6 @@ Demo logins are the `SEED_*` passwords in `.env` (never print them).
 - **Demo plan:** [docs/demo/script.md](docs/demo/script.md). It is live, not
   simulated: a room as the compound, a badged teammate plus an intruder, alerts to
   the guard phone, the agent's triage, and the naive-baseline counter beside it.
-- **In flight (`feat/zone-editor`):** operators draw and edit zones on the real basemap
-  and save them live — `PUT /api/v1/sites/{id}/geometry` (admin) rewrites the stored
-  SiteConfig and the PostGIS rows, the decision service adopts them without a restart
-  (`Site.reload` / `DecisionEngine.refresh_site`), and a `site_changed` WebSocket message
-  makes every console refetch. Moving the site origin re-frames nodes, readers and
-  features so they stay on the same ground, and rebuilds the engine (live tracks drop).
 - **Open stretch work:** #34 LSTM trajectories, #35 adaptive zones, #36 hosted demo.
 
 ## Map and zones
@@ -111,6 +122,12 @@ Demo logins are the `SEED_*` passwords in `.env` (never print them).
 - Zone edits are validated by `SiteConfig`, so the rules hold at runtime: ids unique, at
   least one critical zone, and no asset tag left pointing at a deleted containment zone
   (that check fires first — site-alpha's `crate-07` calls `armoury` home).
+- A camera's drawn footprint is the `NodeView` it published (`GET /sites/{id}/views`),
+  not the config's idealised sector: the edge node walks the image border, projects each
+  sample onto the floor, steps down the column where a sample is at or beyond the
+  horizon, and clips at the node's range. Both directions of the pixel↔ground mapping
+  live in `apps/dashboard/src/lib/views.ts`; a click above the horizon says so rather
+  than guessing.
 
 ## Conventions
 
@@ -170,3 +187,10 @@ Demo logins are the `SEED_*` passwords in `.env` (never print them).
 - A new WS message needs three edits or the client union silently misses it:
   `schemas.py`, `export_openapi.py`'s `WS_MESSAGES`, and `ServerMessage` in the
   api-client.
+- A new MQTT topic also needs a line in `infra/mosquitto/acl`. Without it the broker
+  refuses the publish *silently*: the node logs a clean send and nothing ever arrives.
+- OpenCV blocks forever on a dead network stream. Network sources get the FFMPEG
+  backend with `rtsp_transport;tcp|stimeout;5000000`, open/read timeouts and a short
+  retry limit — a phone that walks out of Wi-Fi must reconnect, not hang the pipeline.
+- Camera2's `YUV_420_888` planes have row *and* pixel strides that differ by device;
+  pack NV21 stride-aware or the phone's stream is a green smear on some hardware.
