@@ -60,7 +60,8 @@ pnpm gen:api          # after any API/schema change — CI fails on stale types
 make train            # behaviour model + decision model (~2 min)
 make edge-model       # export YOLO26n to ONNX (isolated uvx env; PyTorch never enters the workspace)
 make edge             # camera edge node against the stack; preview http://127.0.0.1:8090/stream.mjpg
-PIDS_EDGE_SOURCE=http://<phone-ip>:8080/stream.mjpg make edge   # use a phone as the camera (ADR-0013)
+make edge SOURCE=http://<phone-ip>:8081/stream.mjpg   # use a phone as the camera (ADR-0013)
+make camera-test URL=http://<phone-ip>:8081/stream.mjpg   # check that stream before relying on it
 PIDS_SITE_CONFIG=config/sites/demo-room.yaml make up-all   # make the demo room the live site
 make demo / demo-reset   # live demo bring-up (LAN, TLS, console :8080) / clean slate between rehearsals
 make eval / edge-eval    # held-out evaluation report / detector accuracy + benchmarks
