@@ -36,11 +36,26 @@ Do these in order. Steps 4–7 are the ones that go wrong under pressure.
 
 1. **Network.** Phone and laptop on the **same Wi-Fi**, **no VPN** on either. This is the
    single most common cause of a dead demo.
-2. **Measure the room.** Edit `config/sites/demo-room.yaml`: the room polygon, the two
-   zone polygons (watched floor, secure core), the camera position and heading, and
-   **`site.origin`** set to the room's real coordinates. **Set the origin now, never on
-   stage** — moving it live rebuilds the decision engine and drops live tracks (redrawing
-   zones alone is safe; moving the origin is not).
+2. **Put the site on the room, then measure it.** Either edit `config/sites/demo-room.yaml`
+   (zone polygons, camera position and heading, and **`site.origin`** set to the room's
+   real coordinates) — or do it in the console, which is quicker:
+
+   1. Sign in as `admin@pids.local` → **Edit zones** → **Site location**.
+   2. Stand at the room's **south-west floor corner** and press **Use my location**, or
+      type / paste the coordinates (`13.262000, 77.420000` pasted into the latitude box
+      fills both), or switch to *Satellite*, zoom right in and **Pick on map** on the
+      corner. A laptop's fix is often ±20–100 m: when the panel says so, pick on the map.
+   3. Leave *Move the zones and cameras with it* ticked: the whole 8 × 6 m site lands on
+      that corner at its real size. Fix any corner with the **Corners** table (type
+      latitude/longitude) or drag it; **Add a zone from coordinates** takes a pasted
+      survey list.
+   4. **Save zones**, then **keep it**: `make site-export` writes it into
+      `config/sites/demo-room.yaml`. Without this the next `make demo` re-seeds the
+      placeholder, *and* the camera node keeps reading the old origin (its footprint and
+      tracks land in the wrong place). Restart the edge node after exporting.
+
+   **Set the origin now, never on stage** — moving it live rebuilds the decision engine and
+   drops live tracks (redrawing zones alone is safe; moving the origin is not).
 3. **Tape the floor:** the watched floor, the secure core, and — in a second colour — the
    core the operator will redraw to in Act 6.
 4. **Stand the phone up as the camera.** Wedge it high in a corner, lens across the room,
@@ -165,6 +180,9 @@ Build-time failures, in the order you hit them. Stage-time failures are in the s
 | No **Edit zones** button | You are signed in as the operator. It is admin-only: sign in as `admin@pids.local`. |
 | **Save zones** refused | Read the message — at least one critical zone must remain, ids must be unique, and no asset tag may be left pointing at a deleted containment zone. Draw the replacement before deleting the old one. |
 | Live tracks vanished after an edit | You moved `site.origin`, which rebuilds the engine. Set the origin in pre-flight (step 2); on stage only redraw zones. |
+| Zones / location reverted after `make demo` or a restart | Console edits live in the database; the API re-seeds it from `config/sites/<site>.yaml` on every start. Run `make site-export` after saving (step 2). |
+| Camera footprint or tracks sit at the *old* place after moving the site | The edge node still reads the old `site.origin`. `make site-export`, then restart `make edge`. |
+| **Use my location** says it is blocked / needs https | The browser must be allowed location (and macOS Location Services for it), and the page must be `localhost` or `https`. The LAN address `http://192.168…` cannot use it: type the coordinates or **Pick on map** instead. |
 | Camera won't open / OpenCV "not authorized" | Only the webcam path needs this: macOS camera permission for the terminal app (System Settings → Privacy & Security → Camera). |
 | Badge never links | Bluetooth permission for the terminal app; the phone's *Badge* on (Android 12+ needs "Nearby devices"). The badge holder must *move* — standing still gives no evidence, by design. |
 | Phone: "Sign-in failed" / feed reconnecting | Phone on another network, or the Mac firewall blocks the API port. Use the server address `make demo` printed. |
