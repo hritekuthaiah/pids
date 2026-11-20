@@ -182,6 +182,11 @@ Demo logins are the `SEED_*` passwords in `.env` (never print them).
 - MapLibre 6: named imports only; exclude it from Vite `optimizeDeps` (its worker URL
   breaks otherwise and GeoJSON layers silently vanish); size its container explicitly
   (its CSS forces `position: relative`). Basemaps must be keyless — CARTO now needs a key.
+- MapLibre's worker in the **production** build: MapLibre builds the worker URL at runtime, so
+  Vite never emits it. `MapView` calls `setWorkerUrl` with a `?url` import, and nginx serves
+  `.mjs` as `text/javascript` (its mime.types has no `.mjs`; with `nosniff` an octet-stream
+  worker is refused). Without both, the map shows no zones or tracks and logs *Worker failed
+  to load*. A browser that cached the broken worker needs one hard reload (⌘⇧R).
 - Docker on macOS cannot reach USB cameras or serial GPS: the edge node runs natively
   on the demo laptop (ADR-0006). macOS asks camera permission for the *app* running the
   command (Terminal or Claude); until granted, OpenCV reports "not authorized".
