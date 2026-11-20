@@ -1,5 +1,29 @@
 # Changelog
 
+## [1.2.0](https://github.com/hritekuthaiah/pids/compare/v1.1.0...v1.2.0) (2026-11-20)
+
+
+### Features
+
+* **console:** calmer, plainer control-room console ([97aab24](https://github.com/hritekuthaiah/pids/commit/97aab24e478aca438d0241e5b946e27b066a6a46))
+* **console:** put the site on the real spot and edit zones by coordinates ([156256f](https://github.com/hritekuthaiah/pids/commit/156256fad5731587b0623f4a45eb64fcdc3e3684))
+
+
+### Bug Fixes
+
+* **api-client:** guard app sign-in fails on the phone ([09a0bd4](https://github.com/hritekuthaiah/pids/commit/09a0bd46bf96368e56207bb0a8cae9d362e4671e))
+* **console:** the production map never loaded its worker ([44ce958](https://github.com/hritekuthaiah/pids/commit/44ce9587fd64c274b59fe750b37474c172710813))
+* **core:** a badge never passes to another person across a re-acquisition ([6a835c0](https://github.com/hritekuthaiah/pids/commit/6a835c06a2f6097c9e28ca0d46ca3d7a1356efc5))
+
+
+### Documentation
+
+* **demo:** demo moves to 21 Nov; what the first real-hardware run taught us ([3e8b73c](https://github.com/hritekuthaiah/pids/commit/3e8b73c9665d7b0b3a1b7e47ec4bd9008d32a280))
+* **demo:** rewrite the demo script for the phone camera, live zones and footprints ([bde1938](https://github.com/hritekuthaiah/pids/commit/bde1938c99dcb9b9e09e2e463f60da2fe3b7cf33))
+* how to put the site on the real room and keep it ([600363a](https://github.com/hritekuthaiah/pids/commit/600363a086d1585b4f9b5a633cc60401d2c82218))
+* **runbook:** bring demo-day runbook forward for the phone camera, live zones and footprints ([32abab2](https://github.com/hritekuthaiah/pids/commit/32abab20eaf421846328669b0da6cf251b5684dc))
+* **runbook:** preview port clash, Bluetooth permission and skipped push ([46edd0f](https://github.com/hritekuthaiah/pids/commit/46edd0fb911029bad15a8b1674d6d9411f15af65))
+
 ## [1.1.0](https://github.com/hritekuthaiah/pids/compare/v1.0.0...v1.1.0) (2026-10-17)
 
 
