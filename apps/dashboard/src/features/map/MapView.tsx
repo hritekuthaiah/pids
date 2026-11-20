@@ -8,9 +8,11 @@ import {
   type AddLayerObject,
   type FilterSpecification,
   type GeoJSONSource,
+  setWorkerUrl,
   type StyleSpecification,
 } from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
+import workerUrl from "maplibre-gl/dist/maplibre-gl-worker.mjs?url";
 import { useEffect, useRef, useState } from "react";
 
 import { LEVEL_HEX } from "../../lib/format";
@@ -23,6 +25,11 @@ import { useSaveZones } from "./saveZones";
 import { useZoneEditor } from "./useZoneEditor";
 import { ZonePanel } from "./ZonePanel";
 import { createEntityMarker, updateEntityMarker, type EntityMarker } from "./marker";
+
+// MapLibre finds its worker relative to its own module, but the production build
+// bundles that module into the app chunk and never emits the worker: the URL 404s,
+// tiles and every GeoJSON layer silently vanish. Point it at a copy Vite does emit.
+setWorkerUrl(workerUrl);
 
 type Basemap = "dark" | "streets" | "satellite";
 const TWEEN_MS = 520;
