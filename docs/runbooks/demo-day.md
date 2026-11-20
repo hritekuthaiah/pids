@@ -195,6 +195,9 @@ Build-time failures, in the order you hit them. Stage-time failures are in the s
 | Guard app: *onResponse: must return new Response()…* | The APK predates the sign-in fix (#79). Rebuild it with the bundle forced ([apps/guard/README.md](../../apps/guard/README.md)). |
 | `adb install` hangs or fails with no reason | The phone dropped off USB mid-install (changing the USB mode does that). Run it again; on Samsung, Auto Blocker must be off. |
 | Phone not on the LAN | Check Wi-Fi is actually on: a phone on mobile data still streams to nobody. |
+| `make edge`: *OSError: [Errno 48] Address already in use* | Something else holds the preview port 8090 (on 20 Nov it was another project's nginx container). `lsof -nP -iTCP:8090 -sTCP:LISTEN` names it; stop it. Do not move the port: the console only shows a preview from 8090. |
+| `uv run pids-edge ble` prints *other BLE adverts: 0* | The laptop's Bluetooth is off, or macOS has not granted it to the app running the command. That app is the terminal, or **Visual Studio Code** when the command runs from its integrated terminal or Claude Code. Settings → Privacy & Security → Bluetooth (and Camera, for the webcam fallback). |
+| Worker log says push *skipped: no registered devices* | Expected without Firebase. The guard phone alarms from its live connection while the app (or its foreground service) runs, so keep the app open on the guard phone. |
 
 ## After
 
