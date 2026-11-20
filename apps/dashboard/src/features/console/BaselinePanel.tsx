@@ -20,10 +20,10 @@ export function BaselinePanel() {
       right={
         <div className="flex items-center gap-3">
           <span
-            className="font-mono text-[11px] text-fg-muted"
+            className="font-mono text-xs text-fg-muted"
             title={startedAt ? `Counting since ${startedAt}` : undefined}
           >
-            {startedAt ? `T+${since(startedAt, now)}` : "Awaiting data"}
+            {startedAt ? `Counting for ${since(startedAt, now)}` : "Awaiting data"}
           </span>
           <button type="button" className="btn-ghost" onClick={resetTally}>
             Reset
@@ -50,7 +50,7 @@ export function BaselinePanel() {
           nowTone={current.pids > 0 ? "var(--color-warning)" : "var(--color-fg-dim)"}
         />
       </div>
-      <p className="truncate border-t border-line px-3 py-1.5 text-[11px] text-fg-muted">
+      <p className="truncate border-t border-line px-3 py-1.5 text-xs text-fg-muted">
         {verdict({ naive, pids })} · one count per contact
       </p>
     </Panel>
@@ -79,16 +79,14 @@ function Count({
       title={hint}
       className="flex min-w-0 flex-col justify-center gap-1.5 px-4 py-3"
     >
-      <span className="font-display text-[10px] font-semibold tracking-[0.14em] text-fg-muted uppercase">
-        {label}
-      </span>
+      <span className="font-display text-xs font-semibold text-fg-muted">{label}</span>
       <span
         className="font-display text-5xl leading-none font-bold 2xl:text-7xl"
         style={{ color: totalTone }}
       >
         {total}
       </span>
-      <span className="font-mono text-[11px]" style={{ color: nowTone }}>
+      <span className="font-mono text-xs" style={{ color: nowTone }}>
         {now}
       </span>
     </div>

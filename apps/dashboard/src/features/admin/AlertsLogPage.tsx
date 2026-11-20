@@ -30,7 +30,7 @@ export function AlertsLogPage({ siteId }: { siteId: string }) {
     <Panel
       title="Alert log"
       right={
-        <span className="font-mono text-[11px] text-fg-muted">
+        <span className="font-mono text-xs text-fg-muted">
           {rows.length} alerts · {falseAlarms} marked false alarm
         </span>
       }
@@ -53,7 +53,7 @@ export function AlertsLogPage({ siteId }: { siteId: string }) {
           <tbody>
             {rows.map((a) => (
               <tr key={a.id} className="border-b border-line hover:bg-ink-800">
-                <td className="px-3 py-1.5 font-mono text-[11.5px] text-fg-muted">
+                <td className="px-3 py-1.5 font-mono text-xs text-fg-muted">
                   {new Date(a.opened_at).toLocaleString("en-GB", { hour12: false })}
                 </td>
                 <td className="px-3 py-1.5">
@@ -61,7 +61,7 @@ export function AlertsLogPage({ siteId }: { siteId: string }) {
                 </td>
                 <td className="px-3 py-1.5">{a.entity_class}</td>
                 <td className="px-3 py-1.5 text-fg-muted">{humanize(a.zone_id)}</td>
-                <td className="px-3 py-1.5 font-mono text-[11.5px] text-fg-dim">
+                <td className="px-3 py-1.5 font-mono text-xs text-fg-dim">
                   {entityLabel(a.entity_id)}
                 </td>
                 <td className="px-3 py-1.5 font-mono">{a.score}</td>

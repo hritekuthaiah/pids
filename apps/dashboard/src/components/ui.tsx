@@ -33,7 +33,7 @@ export function LevelBadge({ level, className }: { level: string; className?: st
   return (
     <span
       className={clsx(
-        "font-display inline-flex items-center gap-1.5 px-1.5 py-0.5 text-[10px] font-bold tracking-[0.18em] uppercase",
+        "font-display inline-flex items-center gap-1.5 px-1.5 py-0.5 text-xs font-bold",
         className,
       )}
       style={{
@@ -43,7 +43,7 @@ export function LevelBadge({ level, className }: { level: string; className?: st
       }}
     >
       <span className="size-1.5" style={{ background: color }} />
-      {level}
+      {level.charAt(0).toUpperCase() + level.slice(1)}
     </span>
   );
 }
@@ -51,9 +51,7 @@ export function LevelBadge({ level, className }: { level: string; className?: st
 export function Stat({ label, value, tone }: { label: string; value: ReactNode; tone?: string }) {
   return (
     <div className="flex flex-col gap-0.5">
-      <span className="font-display text-[9px] tracking-[0.2em] text-fg-dim uppercase">
-        {label}
-      </span>
+      <span className="font-display text-xs text-fg-dim">{label}</span>
       <span className="font-mono text-sm" style={tone ? { color: tone } : undefined}>
         {value}
       </span>
@@ -64,7 +62,7 @@ export function Stat({ label, value, tone }: { label: string; value: ReactNode; 
 export function Chip({ children, tone }: { children: ReactNode; tone?: string }) {
   return (
     <span
-      className="font-display px-1.5 py-px text-[9.5px] font-semibold tracking-[0.12em] text-fg-muted uppercase"
+      className="font-display px-1.5 py-px text-xs font-semibold text-fg-muted"
       style={{ boxShadow: `inset 0 0 0 1px ${tone ?? "var(--color-line-strong)"}`, color: tone }}
     >
       {children}

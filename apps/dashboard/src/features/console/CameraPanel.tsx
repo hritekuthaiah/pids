@@ -173,13 +173,10 @@ export function CameraPanel({
           {shown && (
             <span
               role="status"
-              className="flex items-center gap-1.5 font-mono text-[11px] uppercase"
+              className="flex items-center gap-1.5 text-xs capitalize"
               style={{ color: FEED_TONE[feed.state] }}
             >
-              <span
-                className={clsx("size-2 rounded-full", feed.state === "live" && "animate-pulse")}
-                style={{ background: FEED_TONE[feed.state] }}
-              />
+              <span className="size-2 rounded-full" style={{ background: FEED_TONE[feed.state] }} />
               {feed.state}
             </span>
           )}
@@ -225,20 +222,18 @@ export function CameraPanel({
               </p>
             )}
             {feed.state === "offline" && (
-              <div className="absolute inset-0 flex flex-col items-center justify-center gap-1.5 bg-[repeating-linear-gradient(0deg,rgb(111_242_166/0.035)_0_1px,transparent_1px_3px)] p-4 text-center">
-                <span className="font-display text-sm font-bold tracking-[0.3em] text-critical uppercase">
-                  Camera offline
-                </span>
+              <div className="absolute inset-0 flex flex-col items-center justify-center gap-1.5 p-4 text-center">
+                <span className="font-display text-sm font-bold text-critical">Camera offline</span>
                 <span className="text-xs text-fg-muted">
                   {feed.fault === "no-frames"
                     ? "The edge node is sending no frames."
                     : "The edge node's preview is unreachable."}
                 </span>
-                <span className="max-w-full truncate font-mono text-[10px] text-fg-dim" title={url}>
+                <span className="max-w-full truncate font-mono text-xs text-fg-dim" title={url}>
                   {url}
                 </span>
                 <div className="mt-1 flex items-center gap-2">
-                  <span className="font-mono text-[11px] text-fg-muted">
+                  <span className="font-mono text-xs text-fg-muted">
                     Retrying every 3 s · attempt {feed.attempt + 1}
                   </span>
                   <button type="button" className="btn-ghost" onClick={feed.reconnect}>
@@ -255,7 +250,7 @@ export function CameraPanel({
         )}
       </div>
       {locate.ready && (
-        <p className="border-t border-line px-3 py-1.5 text-[11px] text-fg-dim">
+        <p className="border-t border-line px-3 py-1.5 text-xs text-fg-dim">
           {locate.message ?? "Click the image to put that spot on the map."}
         </p>
       )}

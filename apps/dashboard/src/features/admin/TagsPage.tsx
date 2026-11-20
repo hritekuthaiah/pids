@@ -34,9 +34,7 @@ export function TagsPage({ siteId }: { siteId: string }) {
   return (
     <Panel
       title="Cooperative tag registry"
-      right={
-        <span className="text-[11px] text-fg-dim">Identity without biometrics · ADR-0005</span>
-      }
+      right={<span className="text-xs text-fg-dim">Identity without biometrics · ADR-0005</span>}
       className="flex-1"
     >
       <table className="w-full text-left text-[13px]">
