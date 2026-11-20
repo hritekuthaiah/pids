@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import itertools
 import math
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -21,7 +22,14 @@ from pids_core.badges import (
     static_id,
     window_of,
 )
-from pids_core.contracts import EntityClass, GeoPoint, TagRead, TrackBatch, VisionTrack
+from pids_core.contracts import (
+    EntityClass,
+    GeoPoint,
+    TagRead,
+    ThreatLevel,
+    TrackBatch,
+    VisionTrack,
+)
 from pids_core.engine import DecisionEngine
 from pids_core.geo import Enu
 from pids_core.site import Site
@@ -243,6 +251,102 @@ def test_engine_whitelists_nobody_when_an_intruder_walks_alongside() -> None:
     assessments = _engine_run(with_companion=True)
     assert len(assessments) == 2
     assert not any(a.authorized for a in assessments)
+
+
+Waypoints = list[tuple[float, tuple[float, float]]]
+
+
+def _along(points: Waypoints, t: float) -> tuple[float, float] | None:
+    """Position at ``t`` on a piecewise-linear path, or None while off camera."""
+    if not points[0][0] <= t <= points[-1][0]:
+        return None
+    for (ta, a), (tb, b) in itertools.pairwise(points):
+        if ta <= t <= tb:
+            f = (t - ta) / (tb - ta) if tb > ta else 0.0
+            return a[0] + (b[0] - a[0]) * f, a[1] + (b[1] - a[1]) * f
+    return points[-1][1]
+
+
+def _scene(tracks: dict[str, Waypoints], badge: Waypoints, t_end: float) -> dict[str, list]:
+    """Demo room at 5 Hz; ``tracks`` in batch order. Returns each entity's assessments."""
+    site = Site.from_yaml(DEMO)
+    rp = Enu(*site.readers["edge-01-ble"].position)
+    engine = DecisionEngine(site)
+    rng = np.random.default_rng(5)
+    seen: dict[str, list] = {}
+    for i in range(round(t_end / 0.2) + 1):
+        t = round(i * 0.2, 6)
+        now = T0 + timedelta(seconds=t)
+        batch = [
+            _track(site, tid, *p, i)
+            for tid, path in tracks.items()
+            if (p := _along(path, t + 1e-9)) is not None
+        ]
+        if batch:
+            engine.ingest_tracks(
+                TrackBatch(site_id=site.id, node_id="edge-01", captured_at=now, tracks=batch)
+            )
+        if (b := _along(badge, t + 1e-9)) is not None:
+            engine.ingest_tag_read(
+                TagRead(
+                    site_id=site.id,
+                    reader_id="edge-01-ble",
+                    tag_id="badge-team-1",
+                    at=now,
+                    rssi_dbm=rssi(Enu(*b).distance_to(rp), rng),
+                )
+            )
+        for a in engine.step(now).assessments:
+            seen.setdefault(a.entity_id.split("/")[-1], []).append(a)
+    return seen
+
+
+HOLDER_IN: Waypoints = [(0.0, (7.5, 0.8)), (9.0, (2.0, 4.5))]
+
+
+def test_badge_never_passes_to_someone_walking_in_as_its_holder_walks_out() -> None:
+    # The holder earns the badge, leaves through the door; 1.5 s later an intruder
+    # enters there and heads for the core. Motion alone cannot tell them apart.
+    out: Waypoints = [(0.0, (7.5, 0.8)), (9.0, (2.0, 2.0)), (10.0, (1.2, 0.2))]
+    seen = _scene(
+        {"1": out, "7": [(11.5, (1.2, 0.3)), (16.0, (6.0, 2.0)), (22.0, (6.0, 2.0))]},
+        badge=[*out, (12.0, (1.2, -1.5)), (22.0, (1.2, -1.5))],
+        t_end=22.0,
+    )
+    assert any(a.authorized for a in seen["1"]), "the holder earned the badge"
+    assert not any(a.authorized for a in seen["7"])
+    assert seen["7"][-1].level is ThreatLevel.CRITICAL
+
+
+def test_a_new_track_beside_the_holder_never_takes_the_badge() -> None:
+    # A track listed before the holder's in the same batch must not be stitched to it:
+    # the holder is still being tracked, so the newcomer is someone else.
+    holder: Waypoints = [*HOLDER_IN, (14.0, (1.0, 5.2))]
+    seen = _scene(
+        {"2": [(4.0, (7.9, 1.6)), (9.0, (2.4, 4.9)), (14.0, (6.0, 2.0))], "1": holder},
+        badge=holder,
+        t_end=14.0,
+    )
+    assert not any(a.authorized for a in seen["2"])
+    assert all(a.authorized for a in seen["1"] if a.at >= T0 + timedelta(seconds=4.0))
+
+
+def test_two_people_lost_together_get_no_badge_on_reacquisition() -> None:
+    # Both tracks drop for 0.6 s and come back as new IDs, the intruder's nearest the
+    # holder's predicted position: nobody visible is whitelisted, the intruder alarms.
+    holder: Waypoints = [*HOLDER_IN, (9.2, (1.8, 4.6))]
+    seen = _scene(
+        {
+            "2": [(4.0, (7.9, 1.6)), (9.0, (2.4, 4.9))],
+            "1": holder,
+            "3": [(9.8, (1.6, 4.7)), (14.0, (6.0, 2.0)), (20.0, (6.0, 2.0))],
+            "4": [(9.8, (2.3, 5.0)), (14.0, (1.0, 5.4)), (20.0, (1.0, 5.4))],
+        },
+        badge=[*holder, (9.8, (2.3, 5.0)), (14.0, (1.0, 5.4)), (20.0, (1.0, 5.4))],
+        t_end=20.0,
+    )
+    assert not any(a.authorized for a in seen["3"])
+    assert seen["3"][-1].level is ThreatLevel.CRITICAL
 
 
 def test_window_constant_matches_the_phone_side() -> None:

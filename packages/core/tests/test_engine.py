@@ -4,7 +4,13 @@ from __future__ import annotations
 
 from helpers import GpsFactory, TrackFactory, at
 from pids_core.baseline import NaiveGeofence
-from pids_core.contracts import AlertEventKind, EntityClass, TagRead, ThreatLevel
+from pids_core.contracts import (
+    AlertEventKind,
+    EntityClass,
+    TagRead,
+    ThreatAssessment,
+    ThreatLevel,
+)
 from pids_core.engine import DecisionEngine
 from pids_core.site import Site
 
@@ -75,6 +81,51 @@ def test_rfid_badge_at_gate_whitelists_the_track(site: Site, track_batch: TrackF
     a = r.assessments[0]
     assert a.tag_id == "badge-0142"
     assert a.authorized
+
+
+def _rfid_walk(
+    engine: DecisionEngine, track_batch: TrackFactory, *, companion: bool
+) -> ThreatAssessment:
+    """Badge 0142 tapped at the south gate; the camera loses the holder (and a companion
+    1.5 m to the side, if any) at t=5 s and re-acquires one new track at t=6 s."""
+    site = engine.site
+    r = None
+    for i in range(16):
+        t = i * DT
+        north = -104.0 + 0.5 * i
+        if i < 10:
+            engine.ingest_tracks(track_batch(t, 1.0, north, node_id="edge-02", hits=i + 1))
+            if companion:
+                engine.ingest_tracks(
+                    track_batch(t, 2.5, north, track_id="5", node_id="edge-02", hits=i + 1)
+                )
+        elif i >= 12:
+            engine.ingest_tracks(
+                track_batch(t, 1.0, north, track_id="2", node_id="edge-02", hits=i - 11)
+            )
+        if i == 3:
+            engine.ingest_tag_read(
+                TagRead(site_id=site.id, reader_id="gate-south", tag_id="badge-0142", at=at(t))
+            )
+        r = engine.step(at(t))
+    assert r is not None
+    return next(a for a in r.assessments if a.entity_id == "edge-02/2")
+
+
+def test_rfid_identity_follows_an_unambiguous_reacquisition(
+    site: Site, track_batch: TrackFactory
+) -> None:
+    a = _rfid_walk(DecisionEngine(site), track_batch, companion=False)
+    assert a.tag_id == "badge-0142"
+    assert a.authorized
+
+
+def test_rfid_identity_stays_behind_when_two_people_were_lost_together(
+    site: Site, track_batch: TrackFactory
+) -> None:
+    a = _rfid_walk(DecisionEngine(site), track_batch, companion=True)
+    assert a.tag_id is None
+    assert not a.authorized
 
 
 def test_revoked_badge_is_not_authorized(site: Site, track_batch: TrackFactory) -> None:

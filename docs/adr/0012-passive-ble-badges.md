@@ -1,6 +1,6 @@
 # ADR-0012: Passive BLE badges — rolling identifiers, evidence-based linking
 
-- **Status:** Accepted
+- **Status:** Accepted; the stitching rule is superseded by ADR-0014
 - **Date:** 2026-10-16
 - **Requirements:** AIL-09, PLT-02, NFR-02, NFR-03; refines ADR-0005
 
@@ -43,7 +43,8 @@ lets the edge laptop listen. Two risks come with that:
   - An earned link holds (hysteresis) until someone else clearly fits better, the badge
     falls silent for 6 s, or the person leaves.
   - Two badges claiming one person: neither is trusted.
-  - Links follow a person across a tracker re-acquisition (stitching).
+  - ~~Links follow a person across a tracker re-acquisition (stitching).~~ Superseded by
+    ADR-0014: a badge never follows a stitch; the linker re-earns it from evidence.
 - **Badges lower threat, never zero it.** They feed the existing `authorized_tag`
   fusion term. A CRITICAL breach still requires geometric evidence (ADR-0009).
 - **Readers have a kind.** An `rfid` read happens at the reader, so the nearest person
