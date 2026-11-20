@@ -1,0 +1,36 @@
+# Webcam fallback for edge-01: the laptop's own camera, used if the phone camera fails
+# mid-demo (`make edge EDGE_CONFIG=config/edge/edge-01-webcam.yaml`). A different lens in a
+# different place, so it has its own calibration:
+#   uv run pids-edge calibrate --config config/edge/edge-01-webcam.yaml --marks config/edge/edge-01.marks.yaml
+site: config/sites/demo-room.yaml
+node_id: edge-01
+
+camera:
+  source: 0        # `make edge-cameras` lists indices
+  width: 1280
+  height: 720
+  fps: 30
+
+detector:
+  model: apps/edge/models/yolo26n.onnx   # `make edge-model`
+
+ground:
+  calibration: config/edge/edge-01-webcam.calibration.yaml   # `pids-edge calibrate`
+
+publish:
+  rate_hz: 5
+
+preview:
+  host: 127.0.0.1
+  port: 8090
+
+sensors:
+  gps:
+    driver: none
+    tag_id: gps-puck-1
+  thermal:
+    driver: none
+  # The laptop's Bluetooth as a passive badge reader (team phones, ADR-0012).
+  ble:
+    driver: bleak
+    reader_id: edge-01-ble

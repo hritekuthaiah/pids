@@ -1,4 +1,4 @@
-# Live demo script — 27 Oct 2026
+# Live demo script — 21 Nov 2026
 
 Everything below happens live, with real people, a real camera and a real phone.
 Simulator and evaluation numbers are shown as evaluation results, never presented as
@@ -30,9 +30,9 @@ Setup and calibration detail lives in the [runbook](../runbooks/demo-day.md); th
 | 5 | [The response](#act-5--the-response) | 2.5 | The guard's phone, then the agent's triage |
 | 6 | [The zones are not baked in](#act-6--the-zones-are-not-baked-in) | 2.5 | The operator drawing a new critical zone, and the next walk judged against it |
 | 7 | [The evidence](#act-7--the-evidence) | 2 | Slides + Grafana |
-| — | [Outdoors with GPS](#optional--outdoors-with-gps) | 2 | Optional |
+| — | [Outdoors with GPS](#optional--outdoors-with-gps) | — | Dropped: no GPS module |
 
-**≈16.5 min**, or ≈18.5 with the GPS segment. Leave Act 6 in: it is the beat that shows
+**≈16.5 min.** Leave Act 6 in: it is the beat that shows
 the system is operated, not configured once and frozen.
 
 ## Pre-flight
@@ -46,8 +46,9 @@ the system is operated, not configured once and frozen.
       demo — say it is by design — but Act 5 is much better with a key.
 - [ ] **Guard APK installed on each phone** (USB debugging, see
       [apps/guard/README.md](../../apps/guard/README.md)), signed in once.
-- [ ] **The phone-as-camera path tried at least once on the real phone** — it has never
-      run on real hardware before today. Tap *Use this phone as a camera* → *Start
+- [ ] **The phone-as-camera path tried at least once on the real phone** — verified on
+      15 Nov on a Samsung SM-M146B (1280×720 at 9 fps, colours correct); repeat it on the
+      phone you will actually use. Tap *Use this phone as a camera* → *Start
       camera*, allow Camera and notifications, and confirm the screen shows a URL. Camera2
       frame packing differs by device: if the stream is a green smear on one phone, try
       another, or fall back to any third-party IP-camera app (it is just another URL,
@@ -69,7 +70,8 @@ the system is operated, not configured once and frozen.
    [demo-day runbook](../runbooks/demo-day.md).
 3. **Tape the floor:** the watched floor, the secure core, and the second core for Act 6
    in a different colour.
-4. **Stand the phone up as the camera.** Wedge it high in a corner, lens across the room,
+4. **Stand the phone up as the camera.** Wedge it high in a corner **in landscape** (portrait
+   streams a sideways room), lens across the room,
    **plugged in**, screen staying on. In the app: *Use this phone as a camera* → *Start
    camera*. Read the URL off the *"Type this on the laptop"* panel — it looks like
    `http://192.168.0.105:8081/stream.mjpg` (port **8081**).
@@ -269,6 +271,8 @@ thing in the build.*
   characterised in simulation and reported separately.
 
 ## Optional — Outdoors with GPS
+
+**Not in the 21 Nov demo:** the team has no GPS module. Kept for a later run.
 
 **2 min.** A teammate carries the GPS module (`make gps`, after `make gps-probe` has
 identified it) or shares the guard app's position with **Share position**. The cooperative

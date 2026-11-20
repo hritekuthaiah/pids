@@ -1,6 +1,6 @@
 # Roadmap
 
-Target: **v1.0 demo on 27 Oct 2026.** Each milestone ends in a demoable, committed,
+Target: **v1.0 demo**, presented live on **21 Nov 2026** (moved from 27 Oct). Each milestone ends in a demoable, committed,
 CI-green state, so the project is presentable at every step. Progress is tracked as
 GitHub milestones and issues; this page is the overview.
 

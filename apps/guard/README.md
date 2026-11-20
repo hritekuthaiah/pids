@@ -32,7 +32,8 @@ export ANDROID_HOME=$HOME/Library/Android/sdk
 
 ```bash
 pnpm -F @pids/guard prebuild                    # generates android/ (not committed)
-(cd apps/guard/android && ./gradlew assembleRelease)
+# Gradle does not see edits in packages/api-client: force the JS bundle, or the old one ships
+(cd apps/guard/android && ./gradlew :app:createBundleReleaseJsAndAssets --rerun && ./gradlew assembleRelease)
 adb install -r apps/guard/android/app/build/outputs/apk/release/app-release.apk
 ```
 
