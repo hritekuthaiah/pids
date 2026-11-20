@@ -70,13 +70,11 @@ export function TriagePanel({ alertId }: { alertId: string }) {
         </button>
       </div>
       {!available && status.isSuccess && (
-        <p className="text-[11.5px] text-fg-dim">
+        <p className="text-xs text-fg-dim">
           The agent is off: no LLM is configured. Alerting is unaffected.
         </p>
       )}
-      {run.isError && (
-        <p className="text-[11.5px] text-[var(--color-critical)]">{run.error.message}</p>
-      )}
+      {run.isError && <p className="text-xs text-[var(--color-critical)]">{run.error.message}</p>}
       {latest.data && (
         <TriageView
           report={latest.data}

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { clock, entityLabel, humanize, since } from "./format";
+import { ago, clock, entityLabel, humanize, identityText, movementText, since } from "./format";
 
 describe("format", () => {
   const t0 = new Date("2026-10-27T04:30:00Z").getTime();
@@ -23,8 +23,29 @@ describe("format", () => {
   });
 
   it("humanises zone ids", () => {
-    expect(humanize("compound-critical")).toBe("compound critical");
+    expect(humanize("compound-critical")).toBe("Compound critical");
     expect(humanize(null)).toBe("open ground");
+  });
+
+  it.each([
+    [5, "5s ago"],
+    [125, "2 min ago"],
+    [3725, "1 h 02 min ago"],
+  ])("ago(%is) = %s", (seconds, expected) => {
+    expect(ago("2026-10-27T04:30:00Z", t0 + seconds * 1000)).toBe(expected);
+  });
+
+  it("says identity and movement in words", () => {
+    expect(identityText({ tag_id: null, authorized: false })).toBe("No badge");
+    expect(identityText({ tag_id: "badge-team-1", authorized: true })).toBe(
+      "Badge checks out (badge-team-1)",
+    );
+    expect(identityText({ tag_id: "badge-0999", authorized: false })).toBe(
+      "Badge not authorised (badge-0999)",
+    );
+    expect(movementText(0.8)).toBe("Unusual movement");
+    expect(movementText(0.2)).toBe("Normal movement");
+    expect(movementText(null)).toBeNull();
   });
 
   it("formats clocks in the site's time zone", () => {

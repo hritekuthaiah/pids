@@ -23,16 +23,16 @@ export function PhoneCameras({ siteId }: { siteId: string }) {
       <span className="hud-title">Phone cameras offered</span>
       <ul className="mt-1 flex flex-col gap-0.5">
         {data.map((c) => (
-          <li key={c.url} className="flex items-baseline gap-2 text-[11.5px]">
+          <li key={c.url} className="flex items-baseline gap-2 text-xs">
             <span className="text-fg-muted">{c.name}</span>
-            <code className="font-mono text-[11px] text-phosphor">{c.url}</code>
-            <span className="ml-auto font-mono text-[10px] text-fg-dim">
+            <code className="font-mono text-xs text-phosphor">{c.url}</code>
+            <span className="ml-auto font-mono text-xs text-fg-dim">
               {c.width}×{c.height} · {Math.round(c.fps)} fps
             </span>
           </li>
         ))}
       </ul>
-      <p className="mt-1 text-[10.5px] text-fg-dim">
+      <p className="mt-1 text-xs text-fg-dim">
         Point the edge node at one: <code className="font-mono">make edge SOURCE=…</code>
       </p>
     </div>

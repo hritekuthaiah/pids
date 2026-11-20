@@ -46,7 +46,7 @@ function CoordInput({
       spellCheck={false}
       defaultValue={shown}
       className={clsx(
-        "min-w-0 flex-1 border bg-ink-900 px-1.5 py-0.5 font-mono text-[11.5px] text-fg",
+        "min-w-0 flex-1 border bg-ink-900 px-1.5 py-0.5 font-mono text-xs text-fg",
         "focus:border-phosphor focus:outline-none",
         bad ? "border-[var(--color-critical)]" : "border-line-strong",
       )}
@@ -135,12 +135,12 @@ export function LocationSection({
       <div className="flex items-center justify-between">
         <span className="hud-title">Site location</span>
         {moved && (
-          <span className="font-mono text-[10px] text-[var(--color-warning)]">moved · unsaved</span>
+          <span className="font-mono text-xs text-[var(--color-warning)]">moved · unsaved</span>
         )}
       </div>
       {origin ? (
         <div className="grid grid-cols-[3.2rem_1fr] items-center gap-x-2 gap-y-1">
-          <span className="text-[10.5px] text-fg-dim">Latitude</span>
+          <span className="text-xs text-fg-dim">Latitude</span>
           <CoordInput
             label="Site latitude"
             value={origin.lat}
@@ -152,7 +152,7 @@ export function LocationSection({
               onOrigin(p.lat, p.lon);
             }}
           />
-          <span className="text-[10.5px] text-fg-dim">Longitude</span>
+          <span className="text-xs text-fg-dim">Longitude</span>
           <CoordInput
             label="Site longitude"
             value={origin.lon}
@@ -166,7 +166,7 @@ export function LocationSection({
           />
         </div>
       ) : (
-        <p className="text-[11px] text-fg-dim">Loading the site's position…</p>
+        <p className="text-xs text-fg-dim">Loading the site's position…</p>
       )}
       <div className="flex gap-1">
         <button
@@ -185,7 +185,7 @@ export function LocationSection({
           {placing ? "Click the map…" : "Pick on map"}
         </button>
       </div>
-      <label className="flex items-start gap-1.5 text-[11px] text-fg-muted">
+      <label className="flex items-start gap-1.5 text-xs text-fg-muted">
         <input
           type="checkbox"
           className="mt-0.5 accent-[var(--color-phosphor)]"
@@ -197,7 +197,7 @@ export function LocationSection({
         />
         <span>
           Move the zones and cameras with it
-          <span className="block text-[10px] text-fg-dim">
+          <span className="block text-xs text-fg-dim">
             {carry
               ? "The whole site lands on this point, keeping its size and layout."
               : "Zones stay where they are; only the site's reference point changes."}
@@ -207,7 +207,7 @@ export function LocationSection({
       {fix.kind === "fix" && (
         <p
           className={clsx(
-            "text-[10.5px]",
+            "text-xs",
             fix.accuracy > ROUGH_FIX_M ? "text-[var(--color-warning)]" : "text-fg-muted",
           )}
         >
@@ -216,8 +216,8 @@ export function LocationSection({
             " — rough for a room. Switch to the satellite view and use Pick on map for the exact corner."}
         </p>
       )}
-      {error !== null && <p className="text-[10.5px] text-[var(--color-critical)]">{error}</p>}
-      <p className="text-[10px] text-fg-dim">
+      {error !== null && <p className="text-xs text-[var(--color-critical)]">{error}</p>}
+      <p className="text-xs text-fg-dim">
         The origin is the site's south-west reference point: zones are measured east and north from
         it.
       </p>
@@ -242,14 +242,12 @@ export function CornerTable({
     <section className="flex flex-col gap-1 border-t border-line pt-2.5">
       <div className="flex items-center justify-between">
         <span className="hud-title">Corners</span>
-        <span className="max-w-[10rem] truncate font-mono text-[10px] text-fg-dim">
-          {draft.name}
-        </span>
+        <span className="max-w-[10rem] truncate font-mono text-xs text-fg-dim">{draft.name}</span>
       </div>
       <ol className="flex max-h-44 flex-col gap-1 overflow-y-auto pr-0.5">
         {draft.ring.map(([lon, lat], i) => (
           <li key={`${draft.id}-${String(i)}`} className="flex items-center gap-1">
-            <span className="w-4 text-right font-mono text-[10px] text-fg-dim">{i + 1}</span>
+            <span className="w-4 text-right font-mono text-xs text-fg-dim">{i + 1}</span>
             <CoordInput
               label={`Latitude of corner ${String(i + 1)}`}
               value={lat}
@@ -271,7 +269,7 @@ export function CornerTable({
             />
             <button
               type="button"
-              className="btn-ghost px-1 py-0 text-[10px]"
+              className="btn-ghost px-1 py-0 text-xs"
               aria-label={`Add a corner after corner ${String(i + 1)}`}
               title="Add a corner halfway to the next one"
               onClick={() => {
@@ -282,7 +280,7 @@ export function CornerTable({
             </button>
             <button
               type="button"
-              className="btn-ghost px-1 py-0 text-[10px]"
+              className="btn-ghost px-1 py-0 text-xs"
               aria-label={`Remove corner ${String(i + 1)}`}
               title={canRemove ? "Remove this corner" : "A zone needs at least three corners"}
               disabled={!canRemove}
@@ -295,7 +293,7 @@ export function CornerTable({
           </li>
         ))}
       </ol>
-      <p className="text-[10px] text-fg-dim">
+      <p className="text-xs text-fg-dim">
         Latitude, longitude. Type or paste; drag a corner on the map to nudge it.
       </p>
     </section>
@@ -327,7 +325,7 @@ export function CoordinateImport({ onAdd }: { onAdd: (kind: ZoneKind, ring: LngL
       <div className="mt-1.5 flex flex-col gap-1.5">
         <textarea
           aria-label="Zone corners, one latitude and longitude per line"
-          className="field h-24 resize-y px-1.5 py-1 text-[11.5px]"
+          className="field h-24 resize-y px-1.5 py-1 text-xs"
           spellCheck={false}
           placeholder={"13.262000, 77.420000\n13.262000, 77.420090\n13.262050, 77.420090"}
           value={text}
@@ -339,7 +337,7 @@ export function CoordinateImport({ onAdd }: { onAdd: (kind: ZoneKind, ring: LngL
         <div className="flex items-center gap-1">
           <select
             aria-label="Kind of the new zone"
-            className="min-w-0 flex-1 bg-ink-900 font-mono text-[10.5px] text-fg-muted outline-none"
+            className="min-w-0 flex-1 bg-ink-900 font-mono text-xs text-fg-muted outline-none"
             value={kind}
             onChange={(e) => {
               setKind(e.target.value as ZoneKind);
@@ -355,8 +353,8 @@ export function CoordinateImport({ onAdd }: { onAdd: (kind: ZoneKind, ring: LngL
             Add zone
           </button>
         </div>
-        {error !== null && <p className="text-[10.5px] text-[var(--color-critical)]">{error}</p>}
-        <p className="text-[10px] text-fg-dim">
+        {error !== null && <p className="text-xs text-[var(--color-critical)]">{error}</p>}
+        <p className="text-xs text-fg-dim">
           One corner per line as latitude, longitude — exactly what a map app copies. At least
           three.
         </p>

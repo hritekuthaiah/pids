@@ -4,6 +4,7 @@ import { useEffect, useState, useSyncExternalStore } from "react";
 
 import { useLive } from "../state/live";
 import { pids, tokenStore, wsUrl } from "./api";
+import { humanize } from "./format";
 
 function subscribeSession(cb: () => void): () => void {
   window.addEventListener("pids:session", cb);
@@ -76,4 +77,10 @@ export function useLiveConnection(siteId: string | undefined): void {
     if (!siteId) return;
     return connectLive({ client: pids, wsUrl, siteId, onMessage: apply, onStatus: setStatus });
   }, [siteId, apply, setStatus]);
+}
+
+/** A zone's name as the site calls it ("Secure Core"), else its id in words. */
+export function useZoneName(): (id: string | null | undefined) => string {
+  const zones = useSite().data?.zones;
+  return (id) => zones?.find((z) => z.id === id)?.name ?? humanize(id);
 }

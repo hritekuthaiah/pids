@@ -66,7 +66,7 @@ export function ZonePanel({
     >
       <div className="flex items-center justify-between">
         <span className="hud-title">Edit zones</span>
-        <span className="font-mono text-[10px] text-fg-dim">{state.drafts.length} zones</span>
+        <span className="font-mono text-xs text-fg-dim">{state.drafts.length} zones</span>
       </div>
 
       <LocationSection
@@ -80,7 +80,7 @@ export function ZonePanel({
       />
 
       {drawing ? (
-        <p className="text-[11.5px] text-fg-muted">
+        <p className="text-xs text-fg-muted">
           Click the map to place corners
           {state.drawing && state.drawing.length >= 3
             ? " · double-click or Enter to close"
@@ -132,7 +132,7 @@ export function ZonePanel({
       )}
       <CoordinateImport onAdd={onAddZone} />
 
-      {error !== null && <p className="text-[11.5px] text-[var(--color-critical)]">{error}</p>}
+      {error !== null && <p className="text-xs text-[var(--color-critical)]">{error}</p>}
       <div className="flex gap-2">
         <button
           type="button"
@@ -146,7 +146,7 @@ export function ZonePanel({
           Cancel
         </button>
       </div>
-      <p className="text-[10.5px] text-fg-dim">
+      <p className="text-xs text-fg-dim">
         Saving takes effect immediately: the decision engine judges live tracks against the new
         zones. The edit lives in the running system only until you export it —{" "}
         <code className="font-mono">make site-export</code> keeps it across restarts and gives the
@@ -179,7 +179,7 @@ function ZoneRow({
       <div className="flex items-center gap-1">
         <input
           aria-label={`Name of ${draft.id}`}
-          className="min-w-0 flex-1 bg-transparent text-[12.5px] text-fg outline-none"
+          className="min-w-0 flex-1 bg-transparent text-[13px] text-fg outline-none"
           value={draft.name}
           onFocus={() => {
             onSelect(draft.id);
@@ -190,7 +190,7 @@ function ZoneRow({
         />
         <button
           type="button"
-          className="btn-ghost px-1 py-0 text-[10px]"
+          className="btn-ghost px-1 py-0 text-xs"
           aria-label={`Delete ${draft.id}`}
           onClick={() => {
             onRemove(draft.id);
@@ -202,7 +202,7 @@ function ZoneRow({
       <div className="flex items-center gap-1">
         <select
           aria-label={`Kind of ${draft.id}`}
-          className="bg-ink-900 font-mono text-[10.5px] text-fg-muted outline-none"
+          className="bg-ink-900 font-mono text-xs text-fg-muted outline-none"
           value={draft.kind}
           onChange={(e) => {
             onKind(draft.id, e.target.value as ZoneKind);
@@ -214,7 +214,7 @@ function ZoneRow({
             </option>
           ))}
         </select>
-        <span className="ml-auto font-mono text-[10px] text-fg-dim">
+        <span className="ml-auto font-mono text-xs text-fg-dim">
           {Math.round(areaM2(draft.ring)).toLocaleString()} m²
         </span>
       </div>

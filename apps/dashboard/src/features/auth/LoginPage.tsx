@@ -26,10 +26,10 @@ export function LoginPage() {
       <div className="animate-rise w-full max-w-sm">
         <div className="mb-6 flex items-end justify-between">
           <div>
-            <div className="font-display text-4xl font-bold tracking-[0.2em] text-fg">PIDS</div>
+            <div className="font-brand text-4xl font-bold tracking-[0.2em] text-fg">PIDS</div>
             <div className="hud-title mt-1">Perimeter Intrusion Detection · Control Room</div>
           </div>
-          <span className="font-mono text-[10px] text-critical">● RESTRICTED</span>
+          <span className="font-mono text-xs text-critical">● RESTRICTED</span>
         </div>
         <form
           onSubmit={(e) => void submit(e)}
@@ -73,7 +73,7 @@ export function LoginPage() {
           <button type="submit" className="btn-primary justify-center py-2" disabled={busy}>
             {busy ? "Authenticating…" : "Sign in"}
           </button>
-          <p className="text-[11px] leading-relaxed text-fg-dim">
+          <p className="text-xs leading-relaxed text-fg-dim">
             Access is logged. Sessions end when this tab is closed. No biometric data is collected
             by this system.
           </p>

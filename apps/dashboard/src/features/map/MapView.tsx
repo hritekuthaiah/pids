@@ -490,6 +490,7 @@ export function MapView({ site, canEdit = false }: { site: SiteGeo; canEdit?: bo
             key={b}
             type="button"
             className={clsx(
+              "capitalize",
               basemap === b ? "btn-primary bg-ink-900/90" : "btn-ghost bg-ink-900/80",
             )}
             onClick={() => {
@@ -569,8 +570,8 @@ function Legend() {
   });
   const [n, e, w, c] = counts.split(",").map(Number);
   return (
-    <div className="hud absolute bottom-3 left-3 flex items-center gap-4 px-3 py-2 font-mono text-[11px]">
-      <span className="hud-title">Tracked</span>
+    <div className="hud absolute bottom-3 left-3 flex items-center gap-4 px-3 py-2 font-mono text-xs">
+      <span className="hud-title">On site</span>
       {(
         [
           ["nominal", n],
@@ -585,7 +586,8 @@ function Legend() {
         </span>
       ))}
       <span className="flex items-center gap-1.5 text-fg-dim">
-        <span className="inline-block h-0 w-4 border-t border-dashed border-warning" /> forecast
+        <span className="inline-block h-0 w-4 border-t border-dashed border-warning" /> predicted
+        path
       </span>
     </div>
   );

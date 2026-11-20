@@ -25,7 +25,7 @@ export function FusionBreakdown({
     <div className="flex flex-col gap-2">
       <div className="flex items-baseline justify-between">
         <span className="hud-title">Fusion evidence · log-odds</span>
-        <span className="font-mono text-[11px] text-fg-muted">
+        <span className="font-mono text-xs text-fg-muted">
           P(threat) = <span className="text-fg">{probability.toFixed(2)}</span>
         </span>
       </div>
@@ -42,7 +42,7 @@ export function FusionBreakdown({
                 {CHANNEL_LABEL[c.channel] ?? c.channel}
               </span>
               <span
-                className="font-mono text-[11px]"
+                className="font-mono text-xs"
                 style={{ color: toward ? "var(--color-critical)" : "var(--color-phosphor)" }}
               >
                 {toward ? "+" : "−"}
@@ -64,7 +64,7 @@ export function FusionBreakdown({
         })}
       </ul>
       {unavailable.length > 0 && (
-        <p className="text-[11px] text-fg-dim">
+        <p className="text-xs text-fg-dim">
           Unavailable (neutral):{" "}
           {unavailable.map((c) => CHANNEL_LABEL[c.channel] ?? c.channel).join(" · ")}
         </p>

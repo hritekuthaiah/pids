@@ -1,7 +1,7 @@
 import type { ThreatAssessment } from "@pids/api-client";
 import { Marker } from "maplibre-gl";
 
-import { entityLabel } from "../../lib/format";
+import { entityLabel, noun } from "../../lib/format";
 
 export interface EntityMarker {
   marker: Marker;
@@ -47,6 +47,6 @@ export function updateEntityMarker(
   m.root.classList.toggle("is-selected", selected);
   m.arrow.style.display = heading === null ? "none" : "block";
   if (heading !== null) m.arrow.style.transform = `rotate(${heading.toFixed(0)}deg)`;
-  const cls = a.authorized ? `${a.entity_class} · tagged` : a.entity_class;
-  m.label.textContent = `${cls.toUpperCase()}  ${a.score}`;
+  // Words, not numbers: the score is one click away in the detail panel.
+  m.label.textContent = a.authorized ? `${noun(a.entity_class)} · badge` : noun(a.entity_class);
 }

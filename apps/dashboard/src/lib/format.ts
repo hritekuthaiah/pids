@@ -70,5 +70,32 @@ export function entityLabel(entityId: string): string {
 
 export function humanize(id: string | null | undefined): string {
   if (!id) return "open ground";
-  return id.replace(/-/g, " ");
+  const words = id.replace(/-/g, " ");
+  return words.charAt(0).toUpperCase() + words.slice(1);
+}
+
+/** "45s ago", "2 min ago", "1 h 05 min ago": how long since, in words an operator reads at a glance. */
+export function ago(iso: string, now: number = Date.now()): string {
+  const s = Math.max(0, Math.round((now - new Date(iso).getTime()) / 1000));
+  if (s < 60) return `${String(s)}s ago`;
+  const m = Math.floor(s / 60);
+  if (m < 60) return `${String(m)} min ago`;
+  return `${String(Math.floor(m / 60))} h ${String(m % 60).padStart(2, "0")} min ago`;
+}
+
+/** What the system is looking at, as a noun: "Person", "Vehicle", "Tag". */
+export function noun(entityClass: string): string {
+  if (entityClass === "unknown") return "Tag";
+  return entityClass.charAt(0).toUpperCase() + entityClass.slice(1);
+}
+
+/** The assessment's numbers, said in words. Raw values stay behind "Why this rating". */
+export function identityText(a: { tag_id: string | null; authorized: boolean }): string {
+  if (a.tag_id === null) return "No badge";
+  return a.authorized ? `Badge checks out (${a.tag_id})` : `Badge not authorised (${a.tag_id})`;
+}
+
+export function movementText(anomaly: number | null): string | null {
+  if (anomaly === null) return null;
+  return anomaly >= 0.6 ? "Unusual movement" : "Normal movement";
 }

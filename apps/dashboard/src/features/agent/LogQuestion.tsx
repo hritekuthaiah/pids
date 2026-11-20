@@ -55,7 +55,7 @@ export function LogQuestion({ siteId }: { siteId: string }) {
 
 export function LogAnswerView({ answer }: { answer: LogAnswer }) {
   return (
-    <div className="flex flex-col gap-1.5 text-[12.5px]">
+    <div className="flex flex-col gap-1.5 text-[13px]">
       <p className="font-semibold text-fg">{answer.answer}</p>
       <div className="flex flex-wrap items-center gap-1">
         <span className="hud-title mr-1">Understood as</span>
@@ -68,7 +68,7 @@ export function LogAnswerView({ answer }: { answer: LogAnswer }) {
           {answer.alerts.map((a) => (
             <li key={a.id} className="flex items-center gap-2 text-fg-muted">
               <LevelBadge level={a.level} />
-              <span className="font-mono text-[11px]">
+              <span className="font-mono text-xs">
                 {new Date(a.opened_at).toLocaleString("en-GB", { hour12: false })}
               </span>
               <span>
