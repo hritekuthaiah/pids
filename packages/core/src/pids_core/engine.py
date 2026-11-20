@@ -137,6 +137,8 @@ class _Entity:
     tag_kind: TagKind = TagKind.PERSON
     spoof: SpoofMonitor | None = None
     linked_vision: str | None = None
+    # vision: a later track already took this one's identity (stitching)
+    stitched: bool = False
     # cached behavioural score
     anomaly: float | None = None
     anomaly_t: float | None = None
@@ -206,6 +208,7 @@ class DecisionEngine:
 
     def ingest_tracks(self, batch: TrackBatch) -> None:
         t = batch.captured_at.timestamp()
+        in_batch = {f"{batch.node_id}/{tr.track_id}" for tr in batch.tracks}
         for tr in batch.tracks:
             eid = f"{batch.node_id}/{tr.track_id}"
             p = self.site.frame.to_enu(tr.position.lat, tr.position.lon)
@@ -224,7 +227,7 @@ class DecisionEngine:
                     sigma_m=tr.position_sigma_m,
                     source=f"vision:{batch.node_id}",
                 )
-                self._stitch(ent, batch.node_id, t)
+                self._stitch(ent, batch.node_id, t, in_batch)
                 self._entities[eid] = ent
             elif t > ent.last_t:
                 ent.kf.update(t, p.east, p.north, tr.position_sigma_m)
@@ -238,18 +241,26 @@ class DecisionEngine:
             _update_class(ent, tr.entity_class, tr.class_confidence)
             self._record(ent, t)
 
-    def _stitch(self, new: _Entity, node_id: str, t: float) -> None:
+    def _stitch(self, new: _Entity, node_id: str, t: float, in_batch: set[str]) -> None:
         """Carry identity across a tracker re-acquisition (motion-based, not appearance).
 
         When a camera loses a person for a few seconds the tracker starts a new ID.
         If a track on the same node ended moments ago where this one begins, the new
-        track inherits its tag identity and class belief — otherwise a badge read at
-        the gate would be forgotten the first time the guard walks behind a pillar.
+        track inherits its class belief and age, and — only if no other lost track could
+        equally be this person — its one-shot identity: an RFID gate read or a GPS tag,
+        which would otherwise be forgotten the first time the guard walks behind a pillar.
+
+        BLE badges never follow a stitch (ADR-0014): the linker re-earns them from
+        RSSI-vs-motion evidence. Motion alone cannot tell a re-acquired holder from an
+        intruder who walks in just as the holder walks out, and at room scale the gate
+        covers the whole floor.
         """
-        best: tuple[float, _Entity] | None = None
+        near: list[tuple[float, _Entity]] = []
         for old in self._entities.values():
             if (
                 old.kind != "vision"
+                or old.stitched
+                or old.entity_id in in_batch  # still being tracked: someone else
                 or not old.source.endswith(node_id)
                 or not 0.0 < t - old.last_t <= _STITCH_WINDOW_S
                 or (old.rfid_tag is None and not old.class_probs)
@@ -257,18 +268,16 @@ class DecisionEngine:
                 continue
             predicted = Enu(*old.kf.forecast(t - old.kf.t))
             d = predicted.distance_to(Enu(*new.kf.position))
-            if d <= max(_STITCH_GATE_M, 3.0 * old.sigma_m) and (best is None or d < best[0]):
-                best = (d, old)
-        if best is not None:
-            old = best[1]
-            new.rfid_tag = old.rfid_tag
-            for linker in self._linkers.values():
-                for badge, owner in list(linker.links.items()):
-                    if owner == old.entity_id:  # the badge follows the person
-                        linker.links[badge] = new.entity_id
-                        new.badge_tag, old.badge_tag = badge, None
+            if d <= max(_STITCH_GATE_M, 3.0 * old.sigma_m):
+                near.append((d, old))
+        if near:
+            old = min(near, key=lambda c: c[0])[1]
             new.class_probs = dict(old.class_probs)
             new.first_t = old.first_t
+            if len(near) > 1:
+                return  # two people lost together: if in doubt, nobody is whitelisted
+            old.stitched = True
+            new.rfid_tag = old.rfid_tag
             if old.linked_tag is not None:
                 tag = self._entities.get(f"tag/{old.linked_tag}")
                 if tag is not None and tag.linked_vision == old.entity_id:
