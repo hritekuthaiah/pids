@@ -11,7 +11,7 @@ into one calibrated threat decision — and reasons about *behaviour* to cut nui
 alarms **without** lowering the probability of detection.
 
 > **Status: v1.0** — every milestone of the [roadmap](docs/roadmap.md) is built, tested
-> and documented; the live demo is on 27 Oct 2026 ([script](docs/demo/script.md)).
+> and documented; the live demo is on 21 Nov 2026 ([script](docs/demo/script.md)).
 
 ## Results
 

@@ -19,8 +19,9 @@ not a USB webcam. The webcam is the documented fallback, below.
 3. Build and install the guard app on each team phone (USB debugging, see
    [apps/guard/README.md](../../apps/guard/README.md)), then sign in once. The same app
    carries the BLE badge **and** the `pids-camera` service — one install does both.
-4. **Try the phone-as-camera path once on a real phone** — it has never run on real
-   hardware before. Tap *Use this phone as a camera* → *Start camera*, allow Camera and
+4. **Try the phone-as-camera path once on a real phone.** It was verified on 15 Nov on a
+   Samsung SM-M146B (Android 15: 1280×720 at 9 fps, colours correct); repeat it on the
+   phone you will actually use. Tap *Use this phone as a camera* → *Start camera*, allow Camera and
    notifications, and confirm the screen shows a URL. Camera2 frame packing differs by
    device: if the stream is a green smear, try another phone, or fall back to any
    third-party IP-camera app (it is just another MJPEG URL — ADR-0013).
@@ -58,7 +59,8 @@ Do these in order. Steps 4–7 are the ones that go wrong under pressure.
    drops live tracks (redrawing zones alone is safe; moving the origin is not).
 3. **Tape the floor:** the watched floor, the secure core, and — in a second colour — the
    core the operator will redraw to in Act 6.
-4. **Stand the phone up as the camera.** Wedge it high in a corner, lens across the room,
+4. **Stand the phone up as the camera.** Wedge it high in a corner **in landscape** (portrait
+   streams a sideways room the detector cannot use), lens across the room,
    **plugged in**, screen staying on. In the guard app: *Use this phone as a camera* →
    *Start camera*. Read the LAN URL off the *"Type this on the laptop"* panel — it looks
    like `http://192.168.0.105:8081/stream.mjpg`. The port is **8081** (8080 is the
@@ -127,9 +129,9 @@ homography does not transfer, and there is no `--calibration` override on `run`.
 second edge config so the fallback costs one command on the day:
 
 1. Find the webcam's index: `make edge-cameras`.
-2. Copy `config/edge/edge-01.yaml` to `config/edge/edge-01-webcam.yaml`; set
-   `camera.source` to that index (usually `0`) and
-   `ground.calibration: config/edge/edge-01-webcam.calibration.yaml`.
+2. `config/edge/edge-01-webcam.yaml` is in the repo: `camera.source: 0` and its own
+   `ground.calibration: config/edge/edge-01-webcam.calibration.yaml`. Change the index if
+   step 1 found a different one.
 3. Calibrate the webcam into that file (point the camera across the room first):
 
    ```bash
@@ -189,6 +191,10 @@ Build-time failures, in the order you hit them. Stage-time failures are in the s
 | Edge on another machine can't connect | `make certs SAN="<laptop LAN IP>"`, restart the broker (`make demo`), copy `infra/certs/out/ca.crt` to the edge, and set `MQTT_CA_FILE`. |
 | Console blank / API unhealthy | `make ps`, `make logs`. `make demo` again is idempotent. |
 | Old alerts everywhere | `make demo-reset`. |
+| Console *Live camera* reads **CAMERA OFFLINE** while the phone streams | Expected until the edge node runs: the panel shows the *edge node's* preview, and `make edge` needs a calibration file. To aim the phone first, open its stream URL in Chrome. |
+| Guard app: *onResponse: must return new Response()…* | The APK predates the sign-in fix (#79). Rebuild it with the bundle forced ([apps/guard/README.md](../../apps/guard/README.md)). |
+| `adb install` hangs or fails with no reason | The phone dropped off USB mid-install (changing the USB mode does that). Run it again; on Samsung, Auto Blocker must be off. |
+| Phone not on the LAN | Check Wi-Fi is actually on: a phone on mobile data still streams to nobody. |
 
 ## After
 

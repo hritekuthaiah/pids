@@ -3,7 +3,7 @@
 Autonomous Perimeter Intrusion Detection System: nested geofences + camera detection +
 behavioural anomaly + cooperative-tag identity, fused into one calibrated threat
 decision. Final-year major project (SVIT, BCS786); public portfolio repo. **Live demo:
-27 Oct 2026.**
+21 Nov 2026** (moved from 27 Oct).
 
 Read `docs/product/requirements.md` and `docs/architecture/overview.md` before
 substantial work. Decisions in `docs/adr/` are locked; supersede them with a new ADR
@@ -72,7 +72,7 @@ make gps-probe           # identify a plugged-in GPS module
 
 Demo logins are the `SEED_*` passwords in `.env` (never print them).
 
-## Current state (17 Oct 2026)
+## Current state (20 Nov 2026)
 
 - **v1.0.0 released and tagged (17 Oct).** All milestones M0–M8 merged.
   - Decision core: held-out Pd 99.3% (139/140), 82% fewer nuisance alarms than
@@ -108,12 +108,18 @@ Demo logins are the `SEED_*` passwords in `.env` (never print them).
     the visible ground footprint in WGS84, the image→metres homography and the site
     origin — so the map draws the real footprint and clicking the live preview pins
     that pixel's position on the map.
+- **Demo prep (15–20 Nov):**
+  - **Phone as camera verified on real hardware.** Samsung SM-M146B, Android 15:
+    1280×720 at 9 fps, colours correct.
+  - Guard app signs in on the phone after the openapi-fetch fix (#79).
+  - Badges never follow a tracker stitch (#80, ADR-0014). The demo room exposed
+    intruders inheriting the badge holder's badge.
+  - API key is in `.env`; the agent reports Anthropic available.
+  - No GPS module, so the outdoor GPS segment is dropped from the demo.
 - **Still needs a human:**
-  - paste `ANTHROPIC_API_KEY` into `.env`
-  - install the guard APK on phones (USB debugging)
+  - install the guard APK on the second team phone
   - Firebase/EAS accounts if remote push is wanted
-  - measure the demo room and calibrate the camera on site
-  - identify the GPS module (`make gps-probe`)
+  - measure the demo room and calibrate the camera on site (no calibration file yet)
   - grant macOS camera and Bluetooth permission to the terminal
 - **Demo plan:** [docs/demo/script.md](docs/demo/script.md). It is live, not
   simulated: a room as the compound, a badged teammate plus an intruder, alerts to
@@ -222,3 +228,11 @@ Demo logins are the `SEED_*` passwords in `.env` (never print them).
   retry limit — a phone that walks out of Wi-Fi must reconnect, not hang the pipeline.
 - Camera2's `YUV_420_888` planes have row *and* pixel strides that differ by device;
   pack NV21 stride-aware or the phone's stream is a green smear on some hardware.
+- Gradle does not see edits in `packages/api-client`: an APK rebuilt after changing it
+  ships the old JavaScript. Force the bundle (`./gradlew :app:createBundleReleaseJsAndAssets
+  --rerun`) before `assembleRelease`.
+- Mount the phone camera in **landscape**. A portrait phone streams the room rotated 90°,
+  and the detector is not trained on sideways people.
+- The console's *Live camera* panel shows the edge node's preview, so it reads *offline*
+  until `make edge` runs, which needs a calibration file. To aim the phone before that,
+  open its own stream URL in Chrome.
