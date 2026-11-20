@@ -109,7 +109,8 @@ export function createPidsClient({ baseUrl, store, onAuthLost }: PidsClientOptio
         store.set(null);
         onAuthLost?.();
       }
-      return response;
+      // Return nothing: openapi-fetch checks a returned value with `instanceof Response`,
+      // which fails on React Native, where fetch's Response is not the global class.
     },
   };
   api.use(auth);
